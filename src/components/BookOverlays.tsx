@@ -26,6 +26,7 @@ import {
   SkillKey,
 } from '../types/game';
 import { DROID_SLOT_LABELS, ITEM_CATALOG } from '../data/itemsAndUpgrades';
+import { buildDemoMarginNotes } from '../data/demoEpisode';
 import { InkVignette, PortraitFrame, SceneIllustration } from './CroppedArt';
 import { getItemIcon } from './RightActivityStage';
 import { sfx } from '../utils/sound';
@@ -137,21 +138,39 @@ export function useDiarySpread(state: GameState): BookSpreadPages {
       )}
 
       <div className="p-4 rounded-md bg-[#f4e3c2] border border-[#9b7343] shadow-sm flex-1">
-        <h3 className="font-hand text-2xl font-bold text-[#3a1f0b] underline decoration-[#8c6438]/50 underline-offset-4 mb-2.5">
-          Выводы:
-        </h3>
-        <div className="space-y-2">
-          {state.diaryConclusions.map((c) => (
-            <div key={c.id} className="flex items-start gap-2 font-hand text-xl text-[#2a180b]">
-              {c.checked ? (
-                <CheckSquare className="w-5 h-5 shrink-0 text-[#8b281a] mt-0.5" />
-              ) : (
-                <Square className="w-5 h-5 shrink-0 text-[#7d582e] mt-0.5" />
-              )}
-              <span className={c.checked ? 'line-through opacity-75' : ''}>{c.text}</span>
+        {state.episodeMode === 'demo_day' ? (
+          <>
+            <h3 className="font-hand text-2xl font-bold text-[#3a1f0b] underline decoration-[#8c6438]/50 underline-offset-4 mb-2.5">
+              На полях:
+            </h3>
+            <div className="space-y-2">
+              {buildDemoMarginNotes(state).map((note, idx) => (
+                <div key={idx} className="flex items-start gap-2 font-hand text-xl text-[#2a180b]">
+                  <span className="text-[#8b281a] shrink-0 leading-snug">—</span>
+                  <span>{note}</span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        ) : (
+          <>
+            <h3 className="font-hand text-2xl font-bold text-[#3a1f0b] underline decoration-[#8c6438]/50 underline-offset-4 mb-2.5">
+              Выводы:
+            </h3>
+            <div className="space-y-2">
+              {state.diaryConclusions.map((c) => (
+                <div key={c.id} className="flex items-start gap-2 font-hand text-xl text-[#2a180b]">
+                  {c.checked ? (
+                    <CheckSquare className="w-5 h-5 shrink-0 text-[#8b281a] mt-0.5" />
+                  ) : (
+                    <Square className="w-5 h-5 shrink-0 text-[#7d582e] mt-0.5" />
+                  )}
+                  <span className={c.checked ? 'line-through opacity-75' : ''}>{c.text}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -980,16 +999,12 @@ export function buildQuestsSpread(state: GameState): BookSpreadPages {
         <div className="p-4 rounded-md bg-[#f4e4c3] border border-[#9b7343] space-y-2.5 flex-1">
           <p className="text-xs text-[#4b2d15] leading-relaxed mb-3">
             Сегодня нет ни больших контрактов, ни погони за сокровищами — просто обычный день в
-            подводном баре. Заглядывайте в «Дневник», чтобы увидеть, как Джил запоминает события.
+            подводном баре. Ниже собраны лишь те мелочи, что уже случились с утра.
           </p>
-          {state.diaryConclusions.map((c) => (
-            <div key={c.id} className="flex items-start gap-2 font-hand text-xl text-[#2a180b]">
-              {c.checked ? (
-                <CheckSquare className="w-5 h-5 shrink-0 text-[#8b281a] mt-0.5" />
-              ) : (
-                <Square className="w-5 h-5 shrink-0 text-[#7d582e] mt-0.5" />
-              )}
-              <span className={c.checked ? 'line-through opacity-75' : ''}>{c.text}</span>
+          {buildDemoMarginNotes(state).map((note, idx) => (
+            <div key={idx} className="flex items-start gap-2 font-hand text-xl text-[#2a180b]">
+              <span className="text-[#8b281a] shrink-0 leading-snug">—</span>
+              <span>{note}</span>
             </div>
           ))}
         </div>

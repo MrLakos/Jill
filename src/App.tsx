@@ -7,6 +7,7 @@ import {
   GameState,
   HubLocationId,
   InventoryItem,
+  NarratorVoice,
   SkillKey,
   StoryChoice,
 } from './types/game';
@@ -82,6 +83,12 @@ function createInitialState(seed: number, started = false): GameState {
     atlantisKeys: 0,
     johnMemoryRestored: 0,
 
+    narratorVoice: {
+      warmth: 1,
+      distance: 1,
+      slips: 0,
+    },
+
     droidSlots: {
       servo: null,
       armor: null,
@@ -150,6 +157,20 @@ function migrateSavedState(raw: unknown): GameState | null {
     flags: candidate.flags ?? {},
     skills: { ...fallback.skills, ...(candidate.skills ?? {}) },
     droidSlots: { ...fallback.droidSlots, ...(candidate.droidSlots ?? {}) },
+    narratorVoice: {
+      warmth:
+        typeof candidate.narratorVoice?.warmth === 'number'
+          ? candidate.narratorVoice.warmth
+          : fallback.narratorVoice.warmth,
+      distance:
+        typeof candidate.narratorVoice?.distance === 'number'
+          ? candidate.narratorVoice.distance
+          : fallback.narratorVoice.distance,
+      slips:
+        typeof candidate.narratorVoice?.slips === 'number'
+          ? candidate.narratorVoice.slips
+          : fallback.narratorVoice.slips,
+    },
   };
 
   // Ensure currentSceneId resolves cleanly
@@ -160,6 +181,17 @@ function migrateSavedState(raw: unknown): GameState | null {
   }
 
   return merged;
+}
+
+function shiftNarratorVoice(
+  voice: NarratorVoice,
+  delta: { warmth?: number; distance?: number; minSlips?: number }
+): NarratorVoice {
+  return {
+    warmth: Math.max(0, Math.min(4, voice.warmth + (delta.warmth ?? 0))),
+    distance: Math.max(0, Math.min(4, voice.distance + (delta.distance ?? 0))),
+    slips: delta.minSlips ? Math.max(voice.slips, delta.minSlips) : voice.slips,
+  };
 }
 
 function addItemToList(list: InventoryItem[], itemId: string, qty = 1): InventoryItem[] {
@@ -289,6 +321,7 @@ export default function App() {
       return {
         ...adv,
         soundEnabled: prev.soundEnabled,
+        narratorVoice: prev.narratorVoice,
         inventory: mergedInv,
         diaryEntries: [
           ...prev.diaryEntries,
@@ -310,12 +343,25 @@ export default function App() {
 
     setState((prev) => {
       const nextFlags = { ...prev.flags };
+      let nextVoice = prev.narratorVoice;
+
       if (nextScene.onEnterFlags) {
         nextScene.onEnterFlags.forEach((f) => {
+          const isNewFlag = !prev.flags[f];
           nextFlags[f] = true;
+          if (
+            isNewFlag &&
+            (f === 'demo_d1_john' || f === 'demo_d3_helped_john')
+          ) {
+            nextVoice = shiftNarratorVoice(nextVoice, { warmth: 1 });
+          }
         });
       }
-      const nextStateForDiary: GameState = { ...prev, flags: nextFlags };
+      const nextStateForDiary: GameState = {
+        ...prev,
+        flags: nextFlags,
+        narratorVoice: nextVoice,
+      };
       let diaryPatch: Partial<GameState> = nextScene.diaryUnlockId
         ? unlockDiary(prev, nextScene.diaryUnlockId)
         : {};
@@ -336,6 +382,7 @@ export default function App() {
       return {
         ...prev,
         ...diaryPatch,
+        narratorVoice: nextVoice,
         diaryConclusions: nextConclusions,
         activeTab: 'story',
         rightMode: 'narrative',
@@ -378,6 +425,7 @@ export default function App() {
           ? {
               ...createInitialState(prev.seed, true),
               soundEnabled: prev.soundEnabled,
+              narratorVoice: prev.narratorVoice,
               diaryEntries: [
                 ...prev.diaryEntries,
                 { ...DIARY_LIBRARY.d_intro, unlockedAt: Date.now() },
@@ -795,6 +843,7 @@ export default function App() {
           const nextState: GameState = {
             ...prev,
             flags: nextFlags,
+            narratorVoice: shiftNarratorVoice(prev.narratorVoice, { warmth: 1 }),
             inventory: addItemToList(prev.inventory, 'odd_bolt', 1),
             diaryConclusions: checkConclusion(prev, 'dc_bolt'),
             currentSceneId: 'demo_2_jukebox_after',
@@ -817,6 +866,7 @@ export default function App() {
           const nextState: GameState = {
             ...prev,
             flags: nextFlags,
+            narratorVoice: shiftNarratorVoice(prev.narratorVoice, { distance: 1 }),
             inventory: addItemToList(prev.inventory, 'odd_bolt', 1),
             diaryConclusions: checkConclusion(prev, 'dc_bolt'),
             currentSceneId: 'demo_2_jukebox_after',
@@ -836,15 +886,12 @@ export default function App() {
             demo_gus_paid_own: true,
             demo_done_gus: true,
           };
-          let nextConclusions = checkConclusion(prev, 'dc_gus');
-          nextConclusions = nextConclusions.map((c) =>
-            c.id === 'dc_salli' ? { ...c, checked: true } : c
-          );
           const nextState: GameState = {
             ...prev,
             flags: nextFlags,
+            narratorVoice: shiftNarratorVoice(prev.narratorVoice, { warmth: 1 }),
             inventory: removeItemFromList(prev.inventory, 'jill_tips', 1),
-            diaryConclusions: nextConclusions,
+            diaryConclusions: checkConclusion(prev, 'dc_gus'),
             currentSceneId: 'demo_4_gus_after',
             rightActionTab: 'talk',
             feedbackBanner: null,
@@ -862,14 +909,11 @@ export default function App() {
             demo_gus_tab_silver: true,
             demo_done_gus: true,
           };
-          let nextConclusions = checkConclusion(prev, 'dc_gus');
-          nextConclusions = nextConclusions.map((c) =>
-            c.id === 'dc_salli' ? { ...c, checked: true } : c
-          );
           const nextState: GameState = {
             ...prev,
             flags: nextFlags,
-            diaryConclusions: nextConclusions,
+            narratorVoice: shiftNarratorVoice(prev.narratorVoice, { distance: 1 }),
+            diaryConclusions: checkConclusion(prev, 'dc_gus'),
             currentSceneId: 'demo_4_gus_after',
             rightActionTab: 'talk',
             feedbackBanner: null,
@@ -887,14 +931,11 @@ export default function App() {
             demo_gus_lied_sour: true,
             demo_done_gus: true,
           };
-          let nextConclusions = checkConclusion(prev, 'dc_gus');
-          nextConclusions = nextConclusions.map((c) =>
-            c.id === 'dc_salli' ? { ...c, checked: true } : c
-          );
           const nextState: GameState = {
             ...prev,
             flags: nextFlags,
-            diaryConclusions: nextConclusions,
+            narratorVoice: shiftNarratorVoice(prev.narratorVoice, { distance: 1 }),
+            diaryConclusions: checkConclusion(prev, 'dc_gus'),
             currentSceneId: 'demo_4_gus_after',
             rightActionTab: 'talk',
             feedbackBanner: null,
@@ -913,6 +954,7 @@ export default function App() {
           return {
             ...prev,
             flags: { ...prev.flags, demo_opened_chest: true },
+            narratorVoice: shiftNarratorVoice(prev.narratorVoice, { minSlips: 1 }),
             inventory: nextInv,
             diaryConclusions: checkConclusion(prev, 'dc_lens'),
             currentSceneId: 'demo_5_chest_silver',
@@ -947,6 +989,7 @@ export default function App() {
           const nextState: GameState = {
             ...prev,
             flags: nextFlags,
+            narratorVoice: shiftNarratorVoice(prev.narratorVoice, { warmth: 1 }),
             inventory: removeItemFromList(prev.inventory, 'odd_bolt', 1),
             diaryConclusions: checkConclusion(prev, 'dc_wall'),
             currentSceneId: 'demo_6_bulkhead_after',
@@ -965,6 +1008,7 @@ export default function App() {
           const nextState: GameState = {
             ...prev,
             flags: nextFlags,
+            narratorVoice: shiftNarratorVoice(prev.narratorVoice, { minSlips: 2 }),
             currentSceneId: 'demo_8_night_closing',
             rightActionTab: 'talk',
             feedbackBanner: null,
