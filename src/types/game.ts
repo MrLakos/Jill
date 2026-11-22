@@ -52,6 +52,19 @@ export type PortraitId =
   | 'enemy_mutant'
   | 'enemy_abyssal';
 
+/**
+ * Профиль Рассказчика. Числа игроку НЕ показываются —
+ * они управляют только выбором литературного варианта.
+ * warmth  0..4 — насколько тепло он говорит о Джил
+ * distance 0..4 — насколько он отстранён
+ * slips   — сколько раз уже проговаривался (оговорки)
+ */
+export interface NarratorVoice {
+  warmth: number;
+  distance: number;
+  slips: number;
+}
+
 export interface InventoryItem {
   id: string;
   name: string;
@@ -357,6 +370,9 @@ export interface GameState {
   abyssAffinity: number; // 0 to 100 (Medium / Eldritch attunement)
   atlantisKeys: number; // Need 3 to unlock Atlantis Vault
   johnMemoryRestored: number; // 0..5 installed parts
+
+  // Narrator profile (never surfaced as numbers to the player)
+  narratorVoice: NarratorVoice;
 
   // Little John Modular Chassis
   droidSlots: Record<DroidSlotKey, string | null>; // item ids
