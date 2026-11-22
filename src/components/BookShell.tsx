@@ -53,7 +53,7 @@ export const BookShell: React.FC<BookShellProps> = ({
 
   const handleTabClick = (id: BookTab) => {
     if (id !== state.activeTab) {
-      sfx.playPageTurn();
+      sfx.playTabSwitch();
     } else {
       sfx.playClick();
     }

@@ -361,7 +361,7 @@ export const RightActivityStage: React.FC<RightActivityStageProps> = ({
             label="Разговор"
             active={state.rightActionTab === 'talk'}
             onClick={() => {
-              sfx.playClick();
+              sfx.playTabSwitch();
               onSetActionTab('talk');
             }}
           />
@@ -372,7 +372,7 @@ export const RightActivityStage: React.FC<RightActivityStageProps> = ({
               disabled={!merchantId}
               active={false}
               onClick={() => {
-                sfx.playClick();
+                sfx.playTabSwitch();
                 onSetActionTab('trade');
               }}
             />
@@ -382,7 +382,7 @@ export const RightActivityStage: React.FC<RightActivityStageProps> = ({
             label="Осмотр"
             active={state.rightActionTab === 'inspect'}
             onClick={() => {
-              sfx.playClick();
+              sfx.playTabSwitch();
               onSetActionTab('inspect');
             }}
           />
@@ -391,7 +391,7 @@ export const RightActivityStage: React.FC<RightActivityStageProps> = ({
             label="Предмет"
             active={state.rightActionTab === 'use'}
             onClick={() => {
-              sfx.playClick();
+              sfx.playTabSwitch();
               onSetActionTab('use');
             }}
           />
@@ -410,7 +410,7 @@ export const RightActivityStage: React.FC<RightActivityStageProps> = ({
                 title={item ? `${item.name}: ${item.description}` : 'Пустой слот'}
                 onClick={() => {
                   if (!item) return;
-                  sfx.playClick();
+                  sfx.playItemPick();
                   onSelectItem(item.id);
                   onSetActionTab('use');
                 }}

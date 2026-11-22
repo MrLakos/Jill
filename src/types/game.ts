@@ -65,6 +65,15 @@ export interface NarratorVoice {
   slips: number;
 }
 
+export interface AudioSettings {
+  musicEnabled: boolean;
+  ambientEnabled: boolean;
+  sfxEnabled: boolean;
+  musicVolume: number; // 0..1
+  ambientVolume: number; // 0..1
+  sfxVolume: number; // 0..1
+}
+
 export interface InventoryItem {
   id: string;
   name: string;
@@ -399,5 +408,6 @@ export interface GameState {
   rightActionTab: 'talk' | 'trade' | 'inspect' | 'use';
   feedbackBanner: { text: string; tone: 'info' | 'good' | 'warn' | 'abyss' } | null;
   soundEnabled: boolean;
+  audioSettings: AudioSettings;
   unreadDiary: boolean;
 }

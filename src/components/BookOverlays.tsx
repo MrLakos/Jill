@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   CheckSquare,
   Square,
@@ -16,10 +16,13 @@ import {
   RotateCcw,
   Volume2,
   VolumeX,
+  Music,
+  Waves,
   Users,
   Heart,
 } from 'lucide-react';
 import {
+  AudioSettings,
   DroidSlotKey,
   GameState,
   HubLocationId,
@@ -39,6 +42,25 @@ export interface BookSpreadPages {
 // === 1. JILL'S DIARY SPREAD (Matches Diary_72fd37ed.webp) ===
 export function useDiarySpread(state: GameState): BookSpreadPages {
   const [selectedIdx, setSelectedIdx] = useState(Math.max(0, state.diaryEntries.length - 1));
+  const prevCountRef = useRef(state.diaryEntries.length);
+  const prevLastIdRef = useRef(state.diaryEntries[state.diaryEntries.length - 1]?.id ?? '');
+  const prevActiveTabRef = useRef(state.activeTab);
+
+  useEffect(() => {
+    const count = state.diaryEntries.length;
+    const lastId = state.diaryEntries[count - 1]?.id ?? '';
+    const justOpenedDiary = state.activeTab === 'diary' && prevActiveTabRef.current !== 'diary';
+    const hasNewEntry = count > prevCountRef.current || (count > 0 && lastId !== prevLastIdRef.current);
+
+    if (justOpenedDiary || hasNewEntry) {
+      setSelectedIdx(Math.max(0, count - 1));
+    }
+
+    prevCountRef.current = count;
+    prevLastIdRef.current = lastId;
+    prevActiveTabRef.current = state.activeTab;
+  }, [state.activeTab, state.diaryEntries]);
+
   const safeIdx = Math.min(selectedIdx, Math.max(0, state.diaryEntries.length - 1));
   const entry = state.diaryEntries[safeIdx] || state.diaryEntries[0];
 
@@ -222,7 +244,10 @@ export function useMapSpread(
     },
   ];
 
+  const isDemoDay = state.episodeMode === 'demo_day';
+
   const canDiveSelected =
+    !isDemoDay &&
     !state.activeExpedition &&
     (selectedSector.type !== 'atlantis_vault' || state.atlantisKeys >= 3);
 
@@ -233,6 +258,13 @@ export function useMapSpread(
         <h2 className="font-display text-3xl font-bold text-[#2b170b]">Карта поселения</h2>
       </header>
 
+      {isDemoDay && (
+        <div className="mb-3 p-3 rounded bg-[#efe0be] border border-[#966e3d] text-xs text-[#4b2d15] leading-relaxed">
+          Сегодня весь день проходит в «Адмирале». Переходы по Гроту и глубоководные погружения
+          откроются в свободном режиме — после завершения дня или через вкладку «Опции».
+        </div>
+      )}
+
       {state.activeExpedition && (
         <div className="mb-3 p-3 rounded bg-[#f1d5c2] border border-[#a8482f] text-xs text-[#541b0e]">
           Сейчас вы находитесь в глубоководной экспедиции! Вернитесь на вкладку «Сцена», чтобы продолжить погружение.
@@ -242,12 +274,15 @@ export function useMapSpread(
       <div className="space-y-2.5 flex-1">
         {hubPlaces.map((loc) => {
           const isHere = state.currentLocation === loc.id && !state.activeExpedition;
+          const travelBlocked = isDemoDay || Boolean(state.activeExpedition);
           return (
             <div
               key={loc.id}
               className={`p-3 rounded-md border transition-colors ${
                 isHere
                   ? 'bg-[#f4dfae] border-[#8b5c22]'
+                  : isDemoDay
+                  ? 'bg-[#ead4a9]/55 border-[#9d7544]/45'
                   : 'bg-[#ead4a9]/75 border-[#9d7544]/60'
               }`}
             >
@@ -260,16 +295,17 @@ export function useMapSpread(
                 </div>
                 <button
                   type="button"
-                  disabled={Boolean(state.activeExpedition)}
+                  disabled={travelBlocked}
                   onClick={() => {
+                    if (travelBlocked) return;
                     sfx.playPageTurn();
                     onTravelHub(loc.id);
                   }}
-                  className={`px-3 py-1.5 rounded text-xs font-semibold cursor-pointer disabled:opacity-45 whitespace-nowrap ${
+                  className={`px-3 py-1.5 rounded text-xs font-semibold cursor-pointer disabled:opacity-45 disabled:cursor-not-allowed whitespace-nowrap ${
                     isHere ? 'parchment-choice-primary text-[#241206]' : 'parchment-choice text-[#2b180b]'
                   }`}
                 >
-                  {isHere ? 'Вы здесь' : 'Перейти'}
+                  {isHere ? 'Вы здесь' : isDemoDay ? 'Сегодня закрыто' : 'Перейти'}
                 </button>
               </div>
               <p className="text-xs text-[#3b2412] leading-relaxed">{loc.detail}</p>
@@ -375,12 +411,15 @@ export function useMapSpread(
           type="button"
           disabled={!canDiveSelected}
           onClick={() => {
+            if (!canDiveSelected) return;
             sfx.playSonarPing();
             onStartExpedition(selectedSector.id);
           }}
           className="w-full py-2.5 px-4 rounded bg-gradient-to-b from-[#e4b34e] to-[#b58124] text-[#1c1006] font-bold text-sm border border-[#ffeaad] hover:brightness-110 disabled:opacity-45 disabled:cursor-not-allowed cursor-pointer"
         >
-          {selectedSector.type === 'atlantis_vault' && state.atlantisKeys < 3
+          {isDemoDay
+            ? 'Погружения доступны в свободном режиме'
+            : selectedSector.type === 'atlantis_vault' && state.atlantisKeys < 3
             ? `Нужно собрать 3 Ключа Бездны (сейчас ${state.atlantisKeys}/3)`
             : selectedSector.completed
             ? 'Повторить погружение за ресурсами'
@@ -745,7 +784,7 @@ export function useInventorySpread(
               key={item.id}
               type="button"
               onClick={() => {
-                sfx.playClick();
+                sfx.playItemPick();
                 setSelectedId(item.id);
               }}
               className={`p-2.5 rounded-md border text-left flex items-center gap-2.5 cursor-pointer transition-colors ${
@@ -1139,38 +1178,142 @@ export function buildQuestsSpread(state: GameState): BookSpreadPages {
 export function useSettingsSpread(
   state: GameState,
   onToggleSound: () => void,
+  onUpdateAudioSettings: (patch: Partial<AudioSettings>) => void,
   onSaveManual: () => void,
   onStartNewSeed: (seed: number) => void,
   onStartDemoDay: () => void,
   onSwitchToAdventure: () => void
 ): BookSpreadPages {
   const [newSeed, setNewSeed] = useState(String(Math.floor(1000 + Math.random() * 8999)));
+  const audio = state.audioSettings;
+
+  const audioChannels: Array<{
+    key: 'music' | 'ambient' | 'sfx';
+    label: string;
+    subtitle: string;
+    icon: React.ReactNode;
+    enabled: boolean;
+    volume: number;
+    onToggle: () => void;
+    onVolume: (v: number) => void;
+  }> = [
+    {
+      key: 'music',
+      label: 'Музыка (пластинка)',
+      subtitle: 'Блюзовая пластинка автомата в «Адмирале»',
+      icon: <Music className="w-4 h-4 text-[#5c3615]" />,
+      enabled: audio.musicEnabled,
+      volume: audio.musicVolume,
+      onToggle: () => onUpdateAudioSettings({ musicEnabled: !audio.musicEnabled }),
+      onVolume: (v) => onUpdateAudioSettings({ musicVolume: v }),
+    },
+    {
+      key: 'ambient',
+      label: 'Атмосфера и вода',
+      subtitle: 'Гул корпуса, трубы, вечерний зал и ночная тишина',
+      icon: <Waves className="w-4 h-4 text-[#5c3615]" />,
+      enabled: audio.ambientEnabled,
+      volume: audio.ambientVolume,
+      onToggle: () => onUpdateAudioSettings({ ambientEnabled: !audio.ambientEnabled }),
+      onVolume: (v) => onUpdateAudioSettings({ ambientVolume: v }),
+    },
+    {
+      key: 'sfx',
+      label: 'Эффекты книги',
+      subtitle: 'Шелест страниц, вкладки, предметы и механизмы',
+      icon: <Volume2 className="w-4 h-4 text-[#5c3615]" />,
+      enabled: audio.sfxEnabled,
+      volume: audio.sfxVolume,
+      onToggle: () => onUpdateAudioSettings({ sfxEnabled: !audio.sfxEnabled }),
+      onVolume: (v) => onUpdateAudioSettings({ sfxVolume: v }),
+    },
+  ];
 
   const left = (
     <div className="animate-page-in flex flex-col flex-1 justify-between">
       <div>
-        <header className="text-center mb-4 pb-2.5 border-b border-[#987041]/40">
+        <header className="text-center mb-3 pb-2 border-b border-[#987041]/40">
           <div className="text-xs text-[#6f4a24]">❖ Управление книгой ❖</div>
           <h2 className="font-display text-3xl font-bold text-[#2b170b]">Настройки и Сохранение</h2>
         </header>
 
-        <div className="space-y-3">
-          <button
-            type="button"
-            onClick={onToggleSound}
-            className="w-full p-3.5 rounded-md parchment-choice flex items-center justify-between cursor-pointer"
-          >
-            <div className="flex items-center gap-2.5">
-              {state.soundEnabled ? <Volume2 className="w-5 h-5 text-[#5c3615]" /> : <VolumeX className="w-5 h-5 text-[#5c3615]" />}
-              <div className="text-left">
-                <div className="text-sm font-bold text-[#2a170a]">Звуки книги и механизмов</div>
-                <div className="text-xs text-[#684522]">Шелест страниц, щелчки замков, сонар и бой</div>
+        <div className="space-y-2.5">
+          <div className="p-3 rounded-md bg-[#ead3a5] border border-[#966e3d] space-y-2.5">
+            <button
+              type="button"
+              onClick={onToggleSound}
+              className="w-full p-2.5 rounded parchment-choice flex items-center justify-between cursor-pointer"
+            >
+              <div className="flex items-center gap-2.5">
+                {state.soundEnabled ? (
+                  <Volume2 className="w-4 h-4 text-[#5c3615]" />
+                ) : (
+                  <VolumeX className="w-4 h-4 text-[#5c3615]" />
+                )}
+                <div className="text-left">
+                  <div className="text-sm font-bold text-[#2a170a]">Общий звук книги</div>
+                  <div className="text-[11px] text-[#684522]">
+                    Мгновенно включает или отключает все каналы
+                  </div>
+                </div>
               </div>
+              <span className="text-xs font-bold text-[#4e2d10]">
+                {state.soundEnabled ? 'Вкл.' : 'Выкл.'}
+              </span>
+            </button>
+
+            <div className={`space-y-2 transition-opacity ${state.soundEnabled ? '' : 'opacity-50'}`}>
+              {audioChannels.map((ch) => (
+                <div
+                  key={ch.key}
+                  className="p-2 rounded bg-[#f4e4c2]/80 border border-[#a8814f]/60 space-y-1.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {ch.icon}
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-[#2a170a] leading-tight">
+                          {ch.label}
+                        </div>
+                        <div className="text-[10px] text-[#6d4924] truncate">{ch.subtitle}</div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={!state.soundEnabled}
+                      onClick={() => {
+                        sfx.playClick();
+                        ch.onToggle();
+                      }}
+                      className={`px-2 py-0.5 rounded text-[11px] font-bold border cursor-pointer disabled:cursor-not-allowed whitespace-nowrap ${
+                        ch.enabled
+                          ? 'bg-[#d9a246] text-[#211207] border-[#7e5119]'
+                          : 'bg-[#dfd0b0] text-[#6d4c2a] border-[#9d7545]'
+                      }`}
+                    >
+                      {ch.enabled ? 'Вкл.' : 'Выкл.'}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      step={5}
+                      disabled={!state.soundEnabled || !ch.enabled}
+                      value={Math.round(ch.volume * 100)}
+                      onChange={(e) => ch.onVolume(Number(e.target.value) / 100)}
+                      aria-label={`Громкость: ${ch.label}`}
+                      className="flex-1 h-1.5 accent-[#8a581c] cursor-pointer disabled:cursor-not-allowed"
+                    />
+                    <span className="w-8 text-right text-[11px] font-semibold text-[#533315] tabular-nums">
+                      {Math.round(ch.volume * 100)}%
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
-            <span className="text-xs font-bold text-[#4e2d10]">
-              {state.soundEnabled ? 'Вкл.' : 'Выкл.'}
-            </span>
-          </button>
+          </div>
 
           <button
             type="button"

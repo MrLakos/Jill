@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  AudioSettings,
   BookTab,
   CombatEnemy,
   CombatState,
@@ -43,11 +44,60 @@ import {
   useMapSpread,
   useSettingsSpread,
 } from './components/BookOverlays';
-import { sfx } from './utils/sound';
+import {
+  AmbientMode,
+  DEFAULT_AUDIO_SETTINGS,
+  MusicMode,
+  sfx,
+} from './utils/sound';
 
 const SAVE_KEY = 'abyss_chronicles_admiral_save_v1';
+const AUDIO_PREFS_KEY = 'abyss_chronicles_audio_v1';
+
+function sanitizeAudioSettings(raw?: Partial<AudioSettings> | null): AudioSettings {
+  const clampVol = (v: unknown, fallback: number) =>
+    typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : fallback;
+  return {
+    musicEnabled:
+      typeof raw?.musicEnabled === 'boolean'
+        ? raw.musicEnabled
+        : DEFAULT_AUDIO_SETTINGS.musicEnabled,
+    ambientEnabled:
+      typeof raw?.ambientEnabled === 'boolean'
+        ? raw.ambientEnabled
+        : DEFAULT_AUDIO_SETTINGS.ambientEnabled,
+    sfxEnabled:
+      typeof raw?.sfxEnabled === 'boolean' ? raw.sfxEnabled : DEFAULT_AUDIO_SETTINGS.sfxEnabled,
+    musicVolume: clampVol(raw?.musicVolume, DEFAULT_AUDIO_SETTINGS.musicVolume),
+    ambientVolume: clampVol(raw?.ambientVolume, DEFAULT_AUDIO_SETTINGS.ambientVolume),
+    sfxVolume: clampVol(raw?.sfxVolume, DEFAULT_AUDIO_SETTINGS.sfxVolume),
+  };
+}
+
+function loadStoredAudioPrefs(): { soundEnabled: boolean; audioSettings: AudioSettings } {
+  if (typeof window === 'undefined') {
+    return { soundEnabled: true, audioSettings: { ...DEFAULT_AUDIO_SETTINGS } };
+  }
+  try {
+    const raw = localStorage.getItem(AUDIO_PREFS_KEY);
+    if (!raw) {
+      return { soundEnabled: true, audioSettings: { ...DEFAULT_AUDIO_SETTINGS } };
+    }
+    const parsed = JSON.parse(raw) as {
+      soundEnabled?: boolean;
+      audioSettings?: Partial<AudioSettings>;
+    };
+    return {
+      soundEnabled: typeof parsed.soundEnabled === 'boolean' ? parsed.soundEnabled : true,
+      audioSettings: sanitizeAudioSettings(parsed.audioSettings),
+    };
+  } catch {
+    return { soundEnabled: true, audioSettings: { ...DEFAULT_AUDIO_SETTINGS } };
+  }
+}
 
 function createInitialState(seed: number, started = false): GameState {
+  const storedAudio = loadStoredAudioPrefs();
   return {
     started,
     episodeMode: 'adventure',
@@ -115,7 +165,8 @@ function createInitialState(seed: number, started = false): GameState {
     selectedItemId: 'brass_cylinder',
     rightActionTab: 'talk',
     feedbackBanner: null,
-    soundEnabled: true,
+    soundEnabled: storedAudio.soundEnabled,
+    audioSettings: storedAudio.audioSettings,
     unreadDiary: false,
   };
 }
@@ -171,6 +222,13 @@ function migrateSavedState(raw: unknown): GameState | null {
           ? candidate.narratorVoice.slips
           : fallback.narratorVoice.slips,
     },
+    soundEnabled:
+      typeof candidate.soundEnabled === 'boolean'
+        ? candidate.soundEnabled
+        : fallback.soundEnabled,
+    audioSettings: candidate.audioSettings
+      ? sanitizeAudioSettings(candidate.audioSettings)
+      : fallback.audioSettings,
   };
 
   // Ensure currentSceneId resolves cleanly
@@ -267,9 +325,71 @@ export default function App() {
     }
   }, []);
 
+  // Unlock Web Audio cleanly on first pointer/keyboard interaction
+  useEffect(() => {
+    const unlockOnce = () => {
+      sfx.unlock();
+    };
+    window.addEventListener('pointerdown', unlockOnce, { passive: true });
+    window.addEventListener('keydown', unlockOnce, { passive: true });
+    return () => {
+      window.removeEventListener('pointerdown', unlockOnce);
+      window.removeEventListener('keydown', unlockOnce);
+    };
+  }, []);
+
+  // Persist audio preferences & sync sound engine channels
+  useEffect(() => {
+    sfx.syncSettings(state.soundEnabled, state.audioSettings);
+    try {
+      localStorage.setItem(
+        AUDIO_PREFS_KEY,
+        JSON.stringify({
+          soundEnabled: state.soundEnabled,
+          audioSettings: state.audioSettings,
+        })
+      );
+    } catch {
+      // ignore storage quota
+    }
+  }, [state.soundEnabled, state.audioSettings]);
+
+  // Synchronize vinyl blues theme (3 states) and underwater ambient by active scene
+  useEffect(() => {
+    if (!state.started) {
+      sfx.setMusicState('none');
+      sfx.setAmbientState('none');
+      return;
+    }
+
+    let nextAmbient: AmbientMode = 'grotto';
+    let nextMusic: MusicMode = 'none';
+
+    if (state.episodeMode === 'demo_day') {
+      if (state.currentSceneId === 'demo_8_night_closing') {
+        nextAmbient = 'bar_night';
+        nextMusic = 'night';
+      } else if (state.currentSceneId === 'demo_7_evening_bar') {
+        nextAmbient = 'bar_evening';
+        nextMusic = 'evening';
+      } else {
+        nextAmbient = 'bar_day';
+        nextMusic = state.currentSceneId === 'demo_2_jukebox_after' ? 'morning' : 'none';
+      }
+    } else if (state.activeExpedition) {
+      nextAmbient = 'expedition';
+      nextMusic = 'none';
+    } else {
+      nextAmbient = 'grotto';
+      nextMusic = 'none';
+    }
+
+    sfx.setAmbientState(nextAmbient);
+    sfx.setMusicState(nextMusic);
+  }, [state.started, state.episodeMode, state.currentSceneId, state.activeExpedition]);
+
   // Auto-save whenever playing
   useEffect(() => {
-    sfx.enabled = state.soundEnabled;
     if (!state.started) return;
     try {
       localStorage.setItem(SAVE_KEY, JSON.stringify(state));
@@ -280,6 +400,7 @@ export default function App() {
   }, [state]);
 
   const handleContinueSaved = () => {
+    sfx.unlock();
     try {
       const raw = localStorage.getItem(SAVE_KEY);
       if (raw) {
@@ -296,16 +417,39 @@ export default function App() {
   };
 
   const handleStartDemo = () => {
+    sfx.unlock();
     const freshSeed = Math.floor(1000 + Math.random() * 8999);
-    setState(createDemoInitialState(freshSeed, true));
+    setState((prev) => ({
+      ...createDemoInitialState(freshSeed, true),
+      soundEnabled: prev.soundEnabled,
+      audioSettings: prev.audioSettings,
+    }));
   };
 
   const handleStartNew = (seed: number) => {
-    const fresh = createInitialState(seed, true);
-    setState(fresh);
+    sfx.unlock();
+    setState((prev) => ({
+      ...createInitialState(seed, true),
+      soundEnabled: prev.soundEnabled,
+      audioSettings: prev.audioSettings,
+    }));
+  };
+
+  const handleUpdateAudioSettings = (patch: Partial<AudioSettings>) => {
+    sfx.unlock();
+    setState((prev) => ({
+      ...prev,
+      audioSettings: sanitizeAudioSettings({ ...prev.audioSettings, ...patch }),
+    }));
+  };
+
+  const handleToggleMasterSound = () => {
+    sfx.unlock();
+    setState((prev) => ({ ...prev, soundEnabled: !prev.soundEnabled }));
   };
 
   const handleSwitchToAdventure = () => {
+    sfx.unlock();
     setState((prev) => {
       if (prev.episodeMode === 'adventure') {
         return { ...prev, activeTab: 'story', rightMode: 'narrative' };
@@ -321,6 +465,7 @@ export default function App() {
       return {
         ...adv,
         soundEnabled: prev.soundEnabled,
+        audioSettings: prev.audioSettings,
         narratorVoice: prev.narratorVoice,
         inventory: mergedInv,
         diaryEntries: [
@@ -401,44 +546,31 @@ export default function App() {
   };
 
   const handleTravelHub = (loc: HubLocationId) => {
+    // Map navigation stays locked to «Адмирал» during Demo Day — never auto-switch modes
+    if (state.episodeMode === 'demo_day' || state.activeExpedition) {
+      return;
+    }
     const sceneMap: Record<HubLocationId, string> = {
       bar_admiral: 'bar_intro',
       scrapyard: 'scrapyard_hub',
       submarine_dock: 'submarine_dock_hub',
       whispering_reef: 'whispering_reef_hub',
     };
-    if (state.episodeMode === 'demo_day') {
-      handleSwitchToAdventure();
-      if (loc !== 'bar_admiral') {
-        setTimeout(() => goToScene(sceneMap[loc]), 0);
-      }
-      return;
-    }
     goToScene(sceneMap[loc]);
   };
 
   // === START PROCEDURAL EXPEDITION ===
   const handleStartExpedition = (sectorId: string) => {
     setState((prev) => {
-      const base =
-        prev.episodeMode === 'demo_day'
-          ? {
-              ...createInitialState(prev.seed, true),
-              soundEnabled: prev.soundEnabled,
-              narratorVoice: prev.narratorVoice,
-              diaryEntries: [
-                ...prev.diaryEntries,
-                { ...DIARY_LIBRARY.d_intro, unlockedAt: Date.now() },
-              ],
-            }
-          : prev;
-      const sector = base.sectors.find((s) => s.id === sectorId);
+      if (prev.episodeMode === 'demo_day' || prev.activeExpedition) {
+        return prev;
+      }
+      const sector = prev.sectors.find((s) => s.id === sectorId);
       if (!sector) return prev;
-      const vexHired = base.crew.some((c) => c.id === 'vex' && c.hired);
+      const vexHired = prev.crew.some((c) => c.id === 'vex' && c.hired);
       const maxO2 = vexHired ? 115 : 100;
       return {
-        ...base,
-        episodeMode: 'adventure',
+        ...prev,
         activeTab: 'story',
         rightMode: 'narrative',
         rightActionTab: 'talk',
@@ -1851,7 +1983,8 @@ export default function App() {
   const inventoryPages = useInventorySpread(state, handleUseItem, handleInstallDroidPart);
   const settingsPages = useSettingsSpread(
     state,
-    () => setState((p) => ({ ...p, soundEnabled: !p.soundEnabled })),
+    handleToggleMasterSound,
+    handleUpdateAudioSettings,
     () => {
       try {
         localStorage.setItem(SAVE_KEY, JSON.stringify(state));
@@ -2232,7 +2365,7 @@ export default function App() {
           unreadDiary: tab === 'diary' ? false : prev.unreadDiary,
         }))
       }
-      onToggleSound={() => setState((prev) => ({ ...prev, soundEnabled: !prev.soundEnabled }))}
+      onToggleSound={handleToggleMasterSound}
       leftPage={activeLeft}
       rightPage={activeRight}
     />
