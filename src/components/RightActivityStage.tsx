@@ -334,7 +334,13 @@ export const RightActivityStage: React.FC<RightActivityStageProps> = ({
           </>
         ) : npc ? (
           <>
-            <PortraitFrame id={npc.portrait} size="md" active />
+            {npc.portrait ? (
+              <PortraitFrame id={npc.portrait} size="md" active />
+            ) : (
+              <div className="w-14 h-14 shrink-0 rounded-md border-2 border-[#c9984c] bg-[#221912] flex items-center justify-center font-display text-2xl font-bold text-[#f3ca72]">
+                {npc.speaker.charAt(0)}
+              </div>
+            )}
             <div className="min-w-0 flex-1">
               <div className="text-xs font-semibold text-[#f3ca72] mb-0.5">{npc.speaker}</div>
               <p className="text-xs sm:text-[13.5px] leading-relaxed text-[#f2e2c6]">
@@ -349,7 +355,7 @@ export const RightActivityStage: React.FC<RightActivityStageProps> = ({
 
       {/* Bottom Brass Action Strip + Quick Inventory Bar */}
       <div className="brass-plate rounded-lg p-2.5 mt-auto">
-        <div className="grid grid-cols-4 gap-1.5 mb-2.5">
+        <div className={`grid ${state.episodeMode === 'demo_day' && !merchantId ? 'grid-cols-3' : 'grid-cols-4'} gap-1.5 mb-2.5`}>
           <ActionModeBtn
             icon={<MessageSquare className="w-3.5 h-3.5" />}
             label="Разговор"
@@ -359,16 +365,18 @@ export const RightActivityStage: React.FC<RightActivityStageProps> = ({
               onSetActionTab('talk');
             }}
           />
-          <ActionModeBtn
-            icon={<Coins className="w-3.5 h-3.5" />}
-            label="Торговля"
-            disabled={!merchantId}
-            active={false}
-            onClick={() => {
-              sfx.playClick();
-              onSetActionTab('trade');
-            }}
-          />
+          {(state.episodeMode !== 'demo_day' || merchantId) && (
+            <ActionModeBtn
+              icon={<Coins className="w-3.5 h-3.5" />}
+              label="Торговля"
+              disabled={!merchantId}
+              active={false}
+              onClick={() => {
+                sfx.playClick();
+                onSetActionTab('trade');
+              }}
+            />
+          )}
           <ActionModeBtn
             icon={<Search className="w-3.5 h-3.5" />}
             label="Осмотр"

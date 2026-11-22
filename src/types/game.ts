@@ -10,6 +10,8 @@ export type BookTab =
 
 export type SkillKey = 'mechanics' | 'stealth' | 'combat' | 'medium';
 
+export type EpisodeMode = 'demo_day' | 'adventure';
+
 export type RightMode =
   | 'narrative'
   | 'trade'
@@ -113,7 +115,7 @@ export interface DiaryEntry {
   weekday: string;
   title: string;
   jillText: string[];
-  hiddenTruthHint: string;
+  hiddenTruthHint?: string; // Internal author notes only — NEVER displayed in UI
   sketchLabel: string;
   photoArt: SceneArtId;
   unlockedAt: number;
@@ -168,7 +170,7 @@ export type ChoiceAction =
 
 export interface NpcDialogueState {
   speaker: string;
-  portrait: PortraitId;
+  portrait?: PortraitId;
   text: string;
   mood?: string;
 }
@@ -177,12 +179,16 @@ export interface StoryScene {
   id: string;
   chapterLabel: string;
   title: string;
+  timeOfDayLabel?: string;
   locationId: HubLocationId | 'expedition';
   art: SceneArtId;
   paragraphs: string[];
+  getParagraphs?: (state: GameState) => string[];
   npc?: NpcDialogueState;
+  getNpc?: (state: GameState) => NpcDialogueState | undefined;
   merchantId?: 'silver' | 'gaika' | 'salli';
   choices: StoryChoice[];
+  getChoices?: (state: GameState) => StoryChoice[];
   onEnterFlags?: string[];
   diaryUnlockId?: string;
   inspectText?: string;
@@ -321,6 +327,7 @@ export type EndingId =
 
 export interface GameState {
   started: boolean;
+  episodeMode: EpisodeMode;
   seed: number;
   day: number;
   activeTab: BookTab;

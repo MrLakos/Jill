@@ -201,7 +201,7 @@ export const LeftNarrativePage: React.FC<LeftNarrativePageProps> = ({
                 </div>
               </div>
 
-              {choice.styleTag && !blockedReason && (
+              {choice.styleTag && !blockedReason && state.episodeMode !== 'demo_day' && (
                 <span className="text-[11px] font-medium text-[#6c4720] whitespace-nowrap shrink-0">
                   {choice.styleTag}
                 </span>

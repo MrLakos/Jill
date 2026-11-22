@@ -92,15 +92,6 @@ export function useDiarySpread(state: GameState): BookSpreadPages {
                 <p key={i}>{p}</p>
               ))}
             </div>
-
-            <div className="mt-4 p-3 rounded bg-[#dfca9e]/80 border border-[#8e6739]/60">
-              <div className="text-[11px] font-semibold text-[#66411d] mb-0.5">
-                Между строк (скрытая правда мира)
-              </div>
-              <p className="text-xs leading-relaxed text-[#382210] italic">
-                {entry.hiddenTruthHint}
-              </p>
-            </div>
           </div>
         )}
       </div>
@@ -123,26 +114,23 @@ export function useDiarySpread(state: GameState): BookSpreadPages {
           <div className="sm:col-span-2 p-3 bg-[#f3e1be] border border-[#9e7545] shadow-sm rotate-1 flex flex-col justify-between">
             <div>
               <div className="font-hand text-xl font-bold text-[#3f220c] mb-1">
-                Мой компас
+                В моих карманах:
               </div>
-              <div className="text-xs text-[#4a2d15] space-y-1.5 tabular-nums">
-                <div>
-                  Милосердие: <strong>{state.compassion >= 0 ? `+${state.compassion}` : state.compassion}</strong>
-                </div>
-                <div>
-                  Зов Бездны: <strong>{state.abyssAffinity}%</strong>
-                </div>
-                <div>
-                  Модули Джона: <strong>{state.johnMemoryRestored}/5</strong>
-                </div>
-              </div>
+              <ul className="font-hand text-[17px] leading-snug text-[#3d2310] space-y-0.5">
+                {state.inventory
+                  .filter((item) => item.quantity > 0)
+                  .slice(0, 4)
+                  .map((item) => (
+                    <li key={item.id} className="truncate">
+                      • {item.name}
+                    </li>
+                  ))}
+              </ul>
             </div>
             <div className="font-hand text-base text-[#633a18] pt-2 border-t border-[#a57e4d]/40">
-              {state.compassion >= 20
-                ? '«Сильвер бы нами гордился!»'
-                : state.compassion <= -15
-                ? '«Хитрый Флинт одобряет...»'
-                : '«Вперёд за тайнами!»'}
+              {state.episodeMode === 'demo_day'
+                ? '«Сильвер говорит: не теряй ключ!»'
+                : '«Все важные находки — сюда!»'}
             </div>
           </div>
         </div>
@@ -397,10 +385,14 @@ export function buildCharactersSpread(
     (item) => item.category === 'part' && item.quantity > 0 && item.droidSlot
   );
 
+  const isDemoDay = state.episodeMode === 'demo_day';
+
   const left = (
     <div className="animate-page-in flex flex-col flex-1 gap-3">
       <header className="text-center pb-2 border-b border-[#987041]/40">
-        <div className="text-xs text-[#6f4a24]">❖ Главные герои и верстак ❖</div>
+        <div className="text-xs text-[#6f4a24]">
+          {isDemoDay ? '❖ Главные герои ❖' : '❖ Главные герои и верстак ❖'}
+        </div>
         <h2 className="font-display text-3xl font-bold text-[#2b170b]">
           Джил и Маленький Джон
         </h2>
@@ -414,11 +406,12 @@ export function buildCharactersSpread(
               <div className="font-display text-lg font-bold text-[#2b170b] leading-none">
                 Джил (9 лет)
               </div>
-              <div className="text-[11px] text-[#6d4822] mt-0.5">Механик · Медиум · Непоседа</div>
+              <div className="text-[11px] text-[#6d4822] mt-0.5">Механик · Непоседа</div>
             </div>
           </div>
           <p className="text-xs text-[#3b2412] leading-snug">
-            Везде суёт свой нос, чинит механизмы на слух и слышит шёпот затонувших веков.
+            Везде суёт свой нос, чинит механизмы на слух, собирает необычные железки и записывает
+            события дня в собственный дневник.
           </p>
         </div>
 
@@ -430,78 +423,103 @@ export function buildCharactersSpread(
                 Маленький Джон
               </div>
               <div className="text-[11px] text-[#6d4822] mt-0.5 tabular-nums">
-                J-17 · HP {state.johnHp}/{state.johnMaxHp}
+                {isDemoDay ? 'Рост ~2 м · Самодельный дроид' : `J-17 (~2 м) · HP ${state.johnHp}/${state.johnMaxHp}`}
               </div>
             </div>
           </div>
-          <button
-            type="button"
-            disabled={state.scrap < 6 || state.johnHp >= state.johnMaxHp}
-            onClick={onRepairJohnWithScrap}
-            className="w-full py-1.5 px-2.5 rounded parchment-choice text-xs font-semibold text-[#2a170a] flex items-center justify-center gap-1.5 disabled:opacity-45 cursor-pointer"
-          >
-            <Wrench className="w-3.5 h-3.5" />
-            <span>Починить (+8 HP за 6 деталей)</span>
-          </button>
+          {isDemoDay ? (
+            <p className="text-xs text-[#3b2412] leading-snug">
+              Тяжёлый, громоздкий и слегка неуклюжий двухметровый робот из арматуры, меди, латуни,
+              труб и заклёпок поверх старого имперского каркаса. «Маленький» — ласковое прозвище.
+            </p>
+          ) : (
+            <button
+              type="button"
+              disabled={state.scrap < 6 || state.johnHp >= state.johnMaxHp}
+              onClick={onRepairJohnWithScrap}
+              className="w-full py-1.5 px-2.5 rounded parchment-choice text-xs font-semibold text-[#2a170a] flex items-center justify-center gap-1.5 disabled:opacity-45 cursor-pointer"
+            >
+              <Wrench className="w-3.5 h-3.5" />
+              <span>Починить (+8 HP за 6 деталей)</span>
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="p-3 rounded-md bg-[#ead3a5] border border-[#926939] flex-1">
-        <div className="flex items-center justify-between mb-2">
+      {isDemoDay ? (
+        <div className="p-4 rounded-md bg-[#ead3a5] border border-[#926939] flex-1 space-y-2.5">
           <h3 className="font-display text-xl font-bold text-[#2b170b]">
-            Модификация шасси J-17
+            Устройство Маленького Джона
           </h3>
-          <span className="text-xs text-[#69441f] tabular-nums">
-            Восстановлено: {state.johnMemoryRestored}/5
-          </span>
+          <p className="text-xs text-[#3b2412] leading-relaxed">
+            Джил восстановила и пересобрала Джона из всего, что нашлось на свалке и в старых доках:
+            арматура, медные трубы, латунные щитки, заклёпки и уцелевшие имперские сервоприводы.
+            В дверных проёмах «Адмирала» ему приходится пригибаться и проходить боком, зато он может
+            удержать стальную распорку там, где не справится ни один взрослый.
+          </p>
+          <p className="text-xs text-[#5b3a1b] italic">
+            В свободном режиме здесь открывается верстак для установки найденных модулей и
+            пробуждения фрагментов памяти J-17.
+          </p>
         </div>
+      ) : (
+        <div className="p-3 rounded-md bg-[#ead3a5] border border-[#926939] flex-1">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-display text-xl font-bold text-[#2b170b]">
+              Модификация шасси J-17
+            </h3>
+            <span className="text-xs text-[#69441f] tabular-nums">
+              Восстановлено: {state.johnMemoryRestored}/5
+            </span>
+          </div>
 
-        <div className="space-y-2">
-          {(Object.keys(DROID_SLOT_LABELS) as DroidSlotKey[]).map((slotKey) => {
-            const installedId = state.droidSlots[slotKey];
-            const installedItem = installedId ? ITEM_CATALOG[installedId] : null;
-            const matchingPart = availableParts.find((p) => p.droidSlot === slotKey);
+          <div className="space-y-2">
+            {(Object.keys(DROID_SLOT_LABELS) as DroidSlotKey[]).map((slotKey) => {
+              const installedId = state.droidSlots[slotKey];
+              const installedItem = installedId ? ITEM_CATALOG[installedId] : null;
+              const matchingPart = availableParts.find((p) => p.droidSlot === slotKey);
 
-            return (
-              <div
-                key={slotKey}
-                className="p-2 rounded bg-[#f6e8ca] border border-[#9e7748]/70 text-xs"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <div className="font-semibold text-[#2b170a]">
-                      {DROID_SLOT_LABELS[slotKey].title}
+              return (
+                <div
+                  key={slotKey}
+                  className="p-2 rounded bg-[#f6e8ca] border border-[#9e7748]/70 text-xs"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="font-semibold text-[#2b170a]">
+                        {DROID_SLOT_LABELS[slotKey].title}
+                      </div>
+                      <div className="text-[11px] text-[#684522]">
+                        {installedItem ? (
+                          <span className="text-[#275c34] font-semibold">
+                            Установлено: {installedItem.name} ({installedItem.droidBonus?.specialAbility})
+                          </span>
+                        ) : (
+                          DROID_SLOT_LABELS[slotKey].desc
+                        )}
+                      </div>
                     </div>
-                    <div className="text-[11px] text-[#684522]">
-                      {installedItem ? (
-                        <span className="text-[#275c34] font-semibold">
-                          Установлено: {installedItem.name} ({installedItem.droidBonus?.specialAbility})
-                        </span>
-                      ) : (
-                        DROID_SLOT_LABELS[slotKey].desc
-                      )}
-                    </div>
+                    {matchingPart && !installedItem && (
+                      <button
+                        type="button"
+                        onClick={() => onInstallDroidPart(matchingPart.id)}
+                        className="px-2.5 py-1 rounded parchment-choice-primary text-[11px] font-bold text-[#211106] cursor-pointer whitespace-nowrap"
+                      >
+                        Установить
+                      </button>
+                    )}
                   </div>
-                  {matchingPart && !installedItem && (
-                    <button
-                      type="button"
-                      onClick={() => onInstallDroidPart(matchingPart.id)}
-                      className="px-2.5 py-1 rounded parchment-choice-primary text-[11px] font-bold text-[#211106] cursor-pointer whitespace-nowrap"
-                    >
-                      Установить
-                    </button>
+                  {installedItem?.droidBonus?.memoryFragment && (
+                    <div className="mt-1.5 pt-1 border-t border-[#a37e50]/35 text-[11px] italic text-[#4d3219]">
+                      {installedItem.droidBonus.memoryFragment}
+                    </div>
                   )}
                 </div>
-                {installedItem?.droidBonus?.memoryFragment && (
-                  <div className="mt-1.5 pt-1 border-t border-[#a37e50]/35 text-[11px] italic text-[#4d3219]">
-                    {installedItem.droidBonus.memoryFragment}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 
@@ -514,85 +532,136 @@ export function buildCharactersSpread(
             <div className="text-xs font-bold text-[#f6d68e]">Сильвер</div>
             <div className="text-[11px] text-[#c7ae82] leading-snug mt-0.5">
               {state.flags.silver_watch_returned
-                ? 'Опекун Джил. Секрет раскрыт: оба глаза целы! Клянётся защитить вас от Флинта.'
-                : 'Одноногий опекун и хозяин «Адмирала». Хранит тайну своей повязки и пустой цепочки.'}
+                ? 'Опекун Джил и хозяин «Адмирала». Часы Меган снова на его цепочке. Ворчит как прежде, но в глазах стало теплее.'
+                : 'Одноногий хозяин бара «Адмирал» и опекун Джил. Знал её родителей — Роя и Меган. Заботу выражает поступками, а не длинными речами.'}
             </div>
           </div>
         </div>
-        <div className="flex items-start gap-2.5 p-2 rounded bg-[#18120d] border border-[#614526]">
-          <PortraitFrame id="flint" size="sm" />
-          <div className="min-w-0">
-            <div className="text-xs font-bold text-[#f6d68e]">Капитан Флинт</div>
-            <div className="text-[11px] text-[#c7ae82] leading-snug mt-0.5">
-              {state.flags.storeroom_opened
-                ? 'Улики подтверждают: Флинт использует дар медиума Джил как «ключ» к Атлантиде!'
-                : 'Скучающий аристократ и капитан «Абиссали». Скрывает свои истинные виды на Джил.'}
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <div className="brass-plate rounded-lg p-3.5 flex-1 flex flex-col text-[#f2dfbe]">
-        <div className="flex items-center justify-between mb-2.5">
-          <div className="flex items-center gap-1.5 text-sm font-bold text-[#f6d68e]">
-            <Users className="w-4 h-4" />
-            <span>Команда субмарины «Абиссаль»</span>
-          </div>
-          <span className="text-[11px] text-[#bda47b]">
-            Нанято: {state.crew.filter((c) => c.hired).length}/{state.crew.length}
-          </span>
-        </div>
-
-        <div className="space-y-2 overflow-y-auto brass-scroll pr-1 flex-1">
-          {state.crew.map((member) => (
-            <div
-              key={member.id}
-              className={`p-2.5 rounded border ${
-                member.hired
-                  ? 'bg-[#241c13] border-[#d9a44b]'
-                  : 'bg-[#17110d] border-[#5d4225]'
-              }`}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-start gap-2.5 min-w-0">
-                  <PortraitFrame id={member.portrait} size="sm" active={member.hired} />
-                  <div className="min-w-0">
-                    <div className="text-xs font-bold text-[#f8e4bc]">
-                      {member.name} <span className="font-normal text-[#bfa67d]">· {member.role}</span>
-                    </div>
-                    <p className="text-[11px] text-[#d9c49f] leading-snug mt-0.5">
-                      {member.publicBio}
-                    </p>
-                    <div className="text-[11px] text-[#84e8cf] mt-1">
-                      Бонус: {member.combatBonus}
-                    </div>
-                    {member.secretRevealed && (
-                      <div className="mt-1 text-[11px] italic text-[#f2b37c]">
-                        Тайная цель: {member.hiddenSecret}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {member.hired ? (
-                  <span className="text-[11px] font-semibold text-[#7ae8ba] whitespace-nowrap shrink-0">
-                    В отряде
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    disabled={state.coins < member.hireCost}
-                    onClick={() => onHireCrew(member.id)}
-                    className="px-2.5 py-1.5 rounded bg-gradient-to-b from-[#9c6a2b] to-[#6d471a] border border-[#e3b058] text-xs font-semibold text-[#fff2d2] hover:brightness-110 disabled:opacity-40 cursor-pointer whitespace-nowrap tabular-nums shrink-0"
-                  >
-                    Нанять ({member.hireCost} 🪙)
-                  </button>
-                )}
+        {isDemoDay ? (
+          <div className="flex items-start gap-2.5 p-2 rounded bg-[#18120d] border border-[#614526]">
+            <PortraitFrame id="salli" size="sm" />
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-[#f6d68e]">Салли</div>
+              <div className="text-[11px] text-[#c7ae82] leading-snug mt-0.5">
+                Разносчица рыбы с причалов и частая гостья «Адмирала». Независимая, острая на язык,
+                всегда знает свежие новости города.
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <div className="flex items-start gap-2.5 p-2 rounded bg-[#18120d] border border-[#614526]">
+            <PortraitFrame id="flint" size="sm" />
+            <div className="min-w-0">
+              <div className="text-xs font-bold text-[#f6d68e]">Капитан Флинт</div>
+              <div className="text-[11px] text-[#c7ae82] leading-snug mt-0.5">
+                {state.flags.storeroom_opened
+                  ? 'Улики подтверждают: Флинт использует дар медиума Джил как «ключ» к Атлантиде!'
+                  : 'Скучающий аристократ и капитан «Абиссали». Скрывает свои истинные виды на Джил.'}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {isDemoDay ? (
+        <div className="brass-plate rounded-lg p-4 flex-1 flex flex-col justify-between text-[#f2dfbe]">
+          <div className="space-y-3">
+            <div className="flex items-center gap-1.5 text-sm font-bold text-[#f6d68e]">
+              <Users className="w-4 h-4" />
+              <span>Люди бара «Адмирал»</span>
+            </div>
+            <div className="p-2.5 rounded bg-[#17110d] border border-[#5d4225] text-xs space-y-1">
+              <div className="font-bold text-[#f8e4bc]">Гусь (11 лет)</div>
+              <p className="text-[11px] text-[#d9c49f] leading-snug">
+                Вихрастый посыльный из доков. Старается держаться независимо и ужасно стесняется,
+                когда не хватает гаек на горячий суп.
+              </p>
+            </div>
+            <div className="p-2.5 rounded bg-[#17110d] border border-[#5d4225] text-xs space-y-1">
+              <div className="font-bold text-[#f8e4bc]">Слесарь Гайка и завсегдатаи</div>
+              <p className="text-[11px] text-[#d9c49f] leading-snug">
+                Рыбаки, ремонтники и механики подводного города. По вечерам они заполняют «Адмирал»
+                шумом, спорами о трубах и запахом мокрой шерсти.
+              </p>
+            </div>
+            {state.flags.demo_done_salli && (
+              <div className="p-2.5 rounded bg-[#17110d] border border-[#5d4225] text-xs space-y-1">
+                <div className="font-bold text-[#f8e4bc]">Слухи с верхних причалов</div>
+                <p className="text-[11px] text-[#d9c49f] leading-snug">
+                  Салли упоминала незнакомого капитана, который расплатился золотым дукатом и
+                  пошутил, что «взял город». В «Адмирал» он ещё не заходил.
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="text-[11px] text-[#bfa67d] pt-2 border-t border-[#5d4225]/60">
+            Экипаж субмарины «Абиссаль» открывается в свободном режиме приключений.
+          </div>
+        </div>
+      ) : (
+        <div className="brass-plate rounded-lg p-3.5 flex-1 flex flex-col text-[#f2dfbe]">
+          <div className="flex items-center justify-between mb-2.5">
+            <div className="flex items-center gap-1.5 text-sm font-bold text-[#f6d68e]">
+              <Users className="w-4 h-4" />
+              <span>Команда субмарины «Абиссаль»</span>
+            </div>
+            <span className="text-[11px] text-[#bda47b]">
+              Нанято: {state.crew.filter((c) => c.hired).length}/{state.crew.length}
+            </span>
+          </div>
+
+          <div className="space-y-2 overflow-y-auto brass-scroll pr-1 flex-1">
+            {state.crew.map((member) => (
+              <div
+                key={member.id}
+                className={`p-2.5 rounded border ${
+                  member.hired
+                    ? 'bg-[#241c13] border-[#d9a44b]'
+                    : 'bg-[#17110d] border-[#5d4225]'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    <PortraitFrame id={member.portrait} size="sm" active={member.hired} />
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-[#f8e4bc]">
+                        {member.name} <span className="font-normal text-[#bfa67d]">· {member.role}</span>
+                      </div>
+                      <p className="text-[11px] text-[#d9c49f] leading-snug mt-0.5">
+                        {member.publicBio}
+                      </p>
+                      <div className="text-[11px] text-[#84e8cf] mt-1">
+                        Бонус: {member.combatBonus}
+                      </div>
+                      {member.secretRevealed && (
+                        <div className="mt-1 text-[11px] italic text-[#f2b37c]">
+                          Тайная цель: {member.hiddenSecret}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {member.hired ? (
+                    <span className="text-[11px] font-semibold text-[#7ae8ba] whitespace-nowrap shrink-0">
+                      В отряде
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={state.coins < member.hireCost}
+                      onClick={() => onHireCrew(member.id)}
+                      className="px-2.5 py-1.5 rounded bg-gradient-to-b from-[#9c6a2b] to-[#6d471a] border border-[#e3b058] text-xs font-semibold text-[#fff2d2] hover:brightness-110 disabled:opacity-40 cursor-pointer whitespace-nowrap tabular-nums shrink-0"
+                    >
+                      Нанять ({member.hireCost} 🪙)
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -900,6 +969,56 @@ export function buildSkillsSpread(
 
 // === 6. QUESTS & MORAL COMPASS SPREAD ===
 export function buildQuestsSpread(state: GameState): BookSpreadPages {
+  if (state.episodeMode === 'demo_day') {
+    const left = (
+      <div className="animate-page-in flex flex-col flex-1">
+        <header className="text-center mb-4 pb-2.5 border-b border-[#987041]/40">
+          <div className="text-xs text-[#6f4a24]">❖ Обычный день в «Адмирале» ❖</div>
+          <h2 className="font-display text-3xl font-bold text-[#2b170b]">Дела на сегодня</h2>
+        </header>
+
+        <div className="p-4 rounded-md bg-[#f4e4c3] border border-[#9b7343] space-y-2.5 flex-1">
+          <p className="text-xs text-[#4b2d15] leading-relaxed mb-3">
+            Сегодня нет ни больших контрактов, ни погони за сокровищами — просто обычный день в
+            подводном баре. Заглядывайте в «Дневник», чтобы увидеть, как Джил запоминает события.
+          </p>
+          {state.diaryConclusions.map((c) => (
+            <div key={c.id} className="flex items-start gap-2 font-hand text-xl text-[#2a180b]">
+              {c.checked ? (
+                <CheckSquare className="w-5 h-5 shrink-0 text-[#8b281a] mt-0.5" />
+              ) : (
+                <Square className="w-5 h-5 shrink-0 text-[#7d582e] mt-0.5" />
+              )}
+              <span className={c.checked ? 'line-through opacity-75' : ''}>{c.text}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+
+    const right = (
+      <div className="animate-page-in flex flex-col flex-1 gap-3">
+        <div className="brass-plate rounded-lg p-4 text-[#f2dfbe] space-y-2.5">
+          <h3 className="font-display text-2xl font-bold text-[#f7d893]">
+            Без шкалы «добра и зла»
+          </h3>
+          <p className="text-xs text-[#d6be96] leading-relaxed">
+            В вводной главе «Обычный день в „Адмирале“» у поступков нет ярлыков и числовых
+            оценок. Мир отвечает тихо — через детали вечера, реплики Сильвера и записи в дневнике
+            самой Джил.
+          </p>
+        </div>
+        <SceneIllustration
+          art="silver_smoking"
+          className="h-[245px]"
+          caption="«Сначала подотри стойку, Рыжая. Большие дела подождут.» — Сильвер"
+        />
+      </div>
+    );
+
+    return { left, right };
+  }
+
   const left = (
     <div className="animate-page-in flex flex-col flex-1">
       <header className="text-center mb-4 pb-2.5 border-b border-[#987041]/40">
@@ -940,7 +1059,7 @@ export function buildQuestsSpread(state: GameState): BookSpreadPages {
     <div className="animate-page-in flex flex-col flex-1 gap-3">
       <div className="brass-plate rounded-lg p-4 text-[#f2dfbe] space-y-4">
         <h3 className="font-display text-2xl font-bold text-[#f7d893]">
-          Компас Морали и Судьбы
+          Компас Судьбы (Свободный режим)
         </h3>
         <p className="text-xs text-[#d6be96] leading-relaxed">
           Решения Джил в Гроте и во время глубоководных экспедиций меняют отношение Сильвера,
@@ -951,7 +1070,7 @@ export function buildQuestsSpread(state: GameState): BookSpreadPages {
           <div className="flex items-center justify-between text-xs mb-1">
             <span className="text-[#e8946b]">Расчёт Флинта</span>
             <span className="font-semibold text-[#f7d893] tabular-nums">
-              Милосердие: {state.compassion}
+              Склонность: {state.compassion}
             </span>
             <span className="text-[#87e8be]">Сердце Сильвера</span>
           </div>
@@ -1006,7 +1125,9 @@ export function useSettingsSpread(
   state: GameState,
   onToggleSound: () => void,
   onSaveManual: () => void,
-  onStartNewSeed: (seed: number) => void
+  onStartNewSeed: (seed: number) => void,
+  onStartDemoDay: () => void,
+  onSwitchToAdventure: () => void
 ): BookSpreadPages {
   const [newSeed, setNewSeed] = useState(String(Math.floor(1000 + Math.random() * 8999)));
 
@@ -1054,11 +1175,36 @@ export function useSettingsSpread(
             <span className="text-xs font-bold text-[#231206]">Сохранить</span>
           </button>
 
-          <div className="p-4 rounded-md bg-[#ead3a5] border border-[#966e3d] space-y-2.5">
-            <div className="text-sm font-bold text-[#2b170a]">Новая процедурная экспедиция</div>
+          <div className="p-3.5 rounded-md bg-[#ead3a5] border border-[#966e3d] space-y-2">
+            <div className="text-sm font-bold text-[#2b170a]">Главы и режимы книги</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  sfx.playPageTurn();
+                  onStartDemoDay();
+                }}
+                className="px-3 py-2 rounded parchment-choice-primary text-xs font-bold text-[#211106] cursor-pointer"
+              >
+                Переиграть «Обычный день»
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  sfx.playPageTurn();
+                  onSwitchToAdventure();
+                }}
+                className="px-3 py-2 rounded parchment-choice text-xs font-bold text-[#2a170a] cursor-pointer"
+              >
+                Свободный режим (экспедиции)
+              </button>
+            </div>
+          </div>
+
+          <div className="p-3.5 rounded-md bg-[#ead3a5] border border-[#966e3d] space-y-2">
+            <div className="text-sm font-bold text-[#2b170a]">Новое зерно свободного режима</div>
             <p className="text-xs text-[#4b2d15]">
-              Введите новое зерно мира (или сгенерируйте случайное), чтобы создать свежую карту
-              подводных секторов и начать с чистого листа.
+              Сгенерируйте новую карту подводных секторов для экспедиций, взлома и боёв.
             </p>
             <div className="flex gap-2">
               <input
@@ -1099,25 +1245,21 @@ export function useSettingsSpread(
       <div className="brass-plate rounded-lg p-4 text-[#f2dfbe] space-y-2.5 text-xs leading-relaxed">
         <h3 className="font-display text-2xl font-bold text-[#f7d893] flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-[#f0be5b]" />
-          <span>Памятка путешественнику Бездны</span>
+          <span>Памятка читателю книги</span>
         </h3>
         <p>
-          • <strong className="text-[#f8dba0]">Скрытность и Бой:</strong> большинство задач можно
-          пройти тихо (взломом, подслушиванием, отвлечением) или пробить силой Маленького Джона.
+          • <strong className="text-[#f8dba0]">Обычный день в «Адмирале»:</strong> спокойная
+          вводная глава от раннего утра до закрытия бара, где выборы не помечены «добром» или
+          «злом», а отражаются в мелочах вечера и дневнике Джил.
         </p>
         <p>
-          • <strong className="text-[#f8dba0]">Выживание экипажа:</strong> в экспедициях следите за
-          Кислородом, Корпусом «Абиссали» и Рассудком.
+          • <strong className="text-[#f8dba0]">Дневник Джил:</strong> личные детские записи о
+          прожитом дне — субъективные, тёплые и внимательные к деталям.
         </p>
         <p>
-          • <strong className="text-[#f8dba0]">Починка Джона:</strong> собирайте уникальные детали на
-          свалке, в тайниках и секторах и ставьте их во вкладке «Герои» — это открывает особые
-          приёмы в бою и секретную концовку.
-        </p>
-        <p>
-          • <strong className="text-[#f8dba0]">Дневник Джил:</strong> обязательно заглядывайте в
-          Дневник после важных событий — детское восприятие Джил скрывает подсказки о настоящих
-          мотивах Сильвера и Флинта.
+          • <strong className="text-[#f8dba0]">Свободный режим:</strong> все прежние механики
+          прототипа (экспедиции, взлом замков, резонанс, пошаговые бои, верстак Маленького Джона и
+          4 концовки) сохранены и доступны по завершении дня или по кнопке слева.
         </p>
       </div>
 

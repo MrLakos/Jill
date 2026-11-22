@@ -105,10 +105,57 @@ export const ITEM_CATALOG: Record<string, Omit<InventoryItem, 'quantity'>> = {
     id: 'silver_watch',
     name: 'Карманные часы с якорем',
     category: 'document',
-    description: 'Старинные латунные часы, которые Сильвер когда-то заложил ради Джил. На внутренней крышке — потёртый портрет.',
-    jillNote: 'Надо обязательно вернуть их Сильверу! Он никогда не просит ничего для себя.',
+    description: 'Старинные латунные часы с гравировкой якоря — подарок Меган, матери Джил. Сильвер любил Меган, но уступил её Рою, а позже заложил часы ради Джил.',
+    jillNote: 'Они всё ещё тикают, если приложить к уху. Сильвер никогда не просит ничего для себя, но я точно знаю — эти часы ему очень дороги.',
     price: 80,
     icon: 'watch',
+  },
+  // Everyday items for "Обычный день в «Адмирале»"
+  jill_tips: {
+    id: 'jill_tips',
+    name: 'Гайки в тряпочке (чаевые)',
+    category: 'tool',
+    description: 'Несколько блестящих гаек и пара латунных шайб, завязанных в лоскут. В подводном поселении за них можно купить суп или простую мелочь.',
+    jillNote: 'Мои честные чаевые за мытьё кружек! Коплю на хорошую маслёнку для Маленького Джона.',
+    price: 6,
+    icon: 'gear',
+  },
+  odd_bolt: {
+    id: 'odd_bolt',
+    name: 'Неправильный латунный болт',
+    category: 'tool',
+    description: 'Тяжёлый латунный болт с обратной резьбой, вынутый из старого музыкального автомата. Он туда явно не подходил.',
+    jillNote: 'Блестит почти как монетка, а резьба закручена не в ту сторону! Оставлю себе — ужасно красивый.',
+    price: 5,
+    icon: 'gear',
+  },
+  parents_buckle: {
+    id: 'parents_buckle',
+    name: 'Медная пряжка из сундука',
+    category: 'document',
+    description: 'Потёртая тяжёлая пряжка от ремня из старого сундука Роя и Меган.',
+    jillNote: 'Пахнет старым деревом и сухой солью. Крепкая — такой ремень точно не порвётся.',
+    price: 0,
+    icon: 'shield',
+  },
+  parents_lens: {
+    id: 'parents_lens',
+    name: 'Стеклянная линза в медной оправе',
+    category: 'tool',
+    description: 'Чистая оптическая линза из вещей родителей Джил. Если навести её на свет, по краю бежит тонкая радужная каёмка.',
+    jillNote: 'Если смотреть сквозь неё на Маленького Джона, его заклёпки кажутся огромными, как иллюминаторы!',
+    price: 0,
+    icon: 'lantern',
+  },
+  sugar_water: {
+    id: 'sugar_water',
+    name: 'Стакан сладкой воды',
+    category: 'consumable',
+    description: 'Тёплая кипячёная вода с щепоткой настоящего сахара — редкость в подводном поселении.',
+    jillNote: 'Сильвер наливает её, когда я грущу или когда он не хочет отвечать на мои вопросы.',
+    price: 0,
+    icon: 'tonic',
+    effect: { hp: 2, sanity: 10 },
   },
   atlantis_shard: {
     id: 'atlantis_shard',
@@ -219,6 +266,11 @@ export const INITIAL_INVENTORY: InventoryItem[] = [
   { ...ITEM_CATALOG.sea_stew, quantity: 2 },
   { ...ITEM_CATALOG.o2_canister, quantity: 2 },
   { ...ITEM_CATALOG.repair_kit, quantity: 1 },
+];
+
+export const DEMO_INITIAL_INVENTORY: InventoryItem[] = [
+  { ...ITEM_CATALOG.jill_tips, quantity: 1 },
+  { ...ITEM_CATALOG.old_keys, quantity: 1 },
 ];
 
 export const MERCHANT_STOCKS: Record<'silver' | 'gaika' | 'salli', { name: string; greeting: string; items: string[] }> = {

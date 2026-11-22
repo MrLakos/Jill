@@ -11,6 +11,7 @@ import {
   StoryChoice,
 } from './types/game';
 import {
+  DEMO_INITIAL_INVENTORY,
   INITIAL_CREW,
   INITIAL_INVENTORY,
   ITEM_CATALOG,
@@ -22,6 +23,11 @@ import {
   INITIAL_QUESTS,
   STORY_SCENES,
 } from './data/storyAndNpcs';
+import {
+  DEMO_CONCLUSIONS,
+  DEMO_SCENES,
+  buildDemoDiaryEntries,
+} from './data/demoEpisode';
 import { generateProceduralSectors } from './data/proceduralWorld';
 import { BookShell } from './components/BookShell';
 import { LeftNarrativePage } from './components/LeftNarrativePage';
@@ -43,6 +49,7 @@ const SAVE_KEY = 'abyss_chronicles_admiral_save_v1';
 function createInitialState(seed: number, started = false): GameState {
   return {
     started,
+    episodeMode: 'adventure',
     seed,
     day: 14,
     activeTab: 'story',
@@ -106,6 +113,55 @@ function createInitialState(seed: number, started = false): GameState {
   };
 }
 
+function createDemoInitialState(seed: number, started = false): GameState {
+  const base: GameState = {
+    ...createInitialState(seed, started),
+    episodeMode: 'demo_day',
+    day: 1,
+    currentSceneId: 'demo_1_morning',
+    currentLocation: 'bar_admiral',
+    skillPoints: 0,
+    inventory: DEMO_INITIAL_INVENTORY.map((i) => ({ ...i })),
+    diaryConclusions: DEMO_CONCLUSIONS.map((c) => ({ ...c })),
+    diaryEntries: [],
+    selectedItemId: 'jill_tips',
+    flags: {},
+  };
+  base.diaryEntries = buildDemoDiaryEntries(base);
+  return base;
+}
+
+function migrateSavedState(raw: unknown): GameState | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const candidate = raw as Partial<GameState>;
+  if (!candidate.seed || !candidate.currentSceneId) return null;
+
+  const mode = candidate.episodeMode === 'demo_day' ? 'demo_day' : 'adventure';
+  const fallback =
+    mode === 'demo_day'
+      ? createDemoInitialState(candidate.seed, true)
+      : createInitialState(candidate.seed, true);
+
+  const merged: GameState = {
+    ...fallback,
+    ...candidate,
+    episodeMode: mode,
+    started: true,
+    flags: candidate.flags ?? {},
+    skills: { ...fallback.skills, ...(candidate.skills ?? {}) },
+    droidSlots: { ...fallback.droidSlots, ...(candidate.droidSlots ?? {}) },
+  };
+
+  // Ensure currentSceneId resolves cleanly
+  if (mode === 'demo_day' && !DEMO_SCENES[merged.currentSceneId]) {
+    merged.currentSceneId = 'demo_1_morning';
+  } else if (mode === 'adventure' && !STORY_SCENES[merged.currentSceneId]) {
+    merged.currentSceneId = 'bar_intro';
+  }
+
+  return merged;
+}
+
 function addItemToList(list: InventoryItem[], itemId: string, qty = 1): InventoryItem[] {
   const catalog = ITEM_CATALOG[itemId];
   if (!catalog) return list;
@@ -162,15 +218,15 @@ function buildCombatEnemies(templates: EnemyTemplate[]): CombatEnemy[] {
 
 export default function App() {
   const [hasSavedGame, setHasSavedGame] = useState(false);
-  const [state, setState] = useState<GameState>(() => createInitialState(4821, false));
+  const [state, setState] = useState<GameState>(() => createDemoInitialState(4821, false));
 
   // Check for existing save on boot
   useEffect(() => {
     try {
       const raw = localStorage.getItem(SAVE_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw) as GameState;
-        if (parsed && parsed.seed && parsed.currentSceneId) {
+        const parsed = migrateSavedState(JSON.parse(raw));
+        if (parsed) {
           setHasSavedGame(true);
         }
       }
@@ -195,14 +251,21 @@ export default function App() {
     try {
       const raw = localStorage.getItem(SAVE_KEY);
       if (raw) {
-        const parsed = JSON.parse(raw) as GameState;
-        setState({ ...parsed, started: true });
-        return;
+        const migrated = migrateSavedState(JSON.parse(raw));
+        if (migrated) {
+          setState(migrated);
+          return;
+        }
       }
     } catch {
-      // fallback to fresh start
+      // fallback to fresh demo start
     }
-    setState(createInitialState(4821, true));
+    setState(createDemoInitialState(4821, true));
+  };
+
+  const handleStartDemo = () => {
+    const freshSeed = Math.floor(1000 + Math.random() * 8999);
+    setState(createDemoInitialState(freshSeed, true));
   };
 
   const handleStartNew = (seed: number) => {
@@ -210,9 +273,38 @@ export default function App() {
     setState(fresh);
   };
 
+  const handleSwitchToAdventure = () => {
+    setState((prev) => {
+      if (prev.episodeMode === 'adventure') {
+        return { ...prev, activeTab: 'story', rightMode: 'narrative' };
+      }
+      const adv = createInitialState(prev.seed, true);
+      // Carry over demo keepsakes if Jill picked them up
+      let mergedInv = adv.inventory;
+      ['odd_bolt', 'parents_buckle', 'parents_lens'].forEach((id) => {
+        if (prev.inventory.some((i) => i.id === id && i.quantity > 0)) {
+          mergedInv = addItemToList(mergedInv, id, 1);
+        }
+      });
+      return {
+        ...adv,
+        soundEnabled: prev.soundEnabled,
+        inventory: mergedInv,
+        diaryEntries: [
+          ...prev.diaryEntries,
+          { ...DIARY_LIBRARY.d_intro, unlockedAt: Date.now() },
+        ],
+        feedbackBanner: {
+          text: 'Открыт свободный режим: бар «Адмирал», тайны, взлом замков и глубоководные экспедиции.',
+          tone: 'info',
+        },
+      };
+    });
+  };
+
   // === HUB NAVIGATION & SCENE TRANSITION ===
   const goToScene = (sceneId: string, banner?: GameState['feedbackBanner']) => {
-    const nextScene = STORY_SCENES[sceneId];
+    const nextScene = DEMO_SCENES[sceneId] || STORY_SCENES[sceneId];
     if (!nextScene) return;
     sfx.playPageTurn();
 
@@ -223,10 +315,28 @@ export default function App() {
           nextFlags[f] = true;
         });
       }
-      const diaryPatch = nextScene.diaryUnlockId ? unlockDiary(prev, nextScene.diaryUnlockId) : {};
+      const nextStateForDiary: GameState = { ...prev, flags: nextFlags };
+      let diaryPatch: Partial<GameState> = nextScene.diaryUnlockId
+        ? unlockDiary(prev, nextScene.diaryUnlockId)
+        : {};
+      let nextConclusions = prev.diaryConclusions;
+
+      if (prev.episodeMode === 'demo_day') {
+        if (nextFlags.demo_done_salli) {
+          nextConclusions = checkConclusion(prev, 'dc_salli');
+        }
+        const rebuilt = buildDemoDiaryEntries(nextStateForDiary);
+        const grew = rebuilt.length > prev.diaryEntries.length;
+        diaryPatch = {
+          diaryEntries: rebuilt,
+          unreadDiary: grew ? true : prev.unreadDiary,
+        };
+      }
+
       return {
         ...prev,
         ...diaryPatch,
+        diaryConclusions: nextConclusions,
         activeTab: 'story',
         rightMode: 'narrative',
         activeMerchant: null,
@@ -250,18 +360,37 @@ export default function App() {
       submarine_dock: 'submarine_dock_hub',
       whispering_reef: 'whispering_reef_hub',
     };
+    if (state.episodeMode === 'demo_day') {
+      handleSwitchToAdventure();
+      if (loc !== 'bar_admiral') {
+        setTimeout(() => goToScene(sceneMap[loc]), 0);
+      }
+      return;
+    }
     goToScene(sceneMap[loc]);
   };
 
   // === START PROCEDURAL EXPEDITION ===
   const handleStartExpedition = (sectorId: string) => {
     setState((prev) => {
-      const sector = prev.sectors.find((s) => s.id === sectorId);
+      const base =
+        prev.episodeMode === 'demo_day'
+          ? {
+              ...createInitialState(prev.seed, true),
+              soundEnabled: prev.soundEnabled,
+              diaryEntries: [
+                ...prev.diaryEntries,
+                { ...DIARY_LIBRARY.d_intro, unlockedAt: Date.now() },
+              ],
+            }
+          : prev;
+      const sector = base.sectors.find((s) => s.id === sectorId);
       if (!sector) return prev;
-      const vexHired = prev.crew.some((c) => c.id === 'vex' && c.hired);
+      const vexHired = base.crew.some((c) => c.id === 'vex' && c.hired);
       const maxO2 = vexHired ? 115 : 100;
       return {
-        ...prev,
+        ...base,
+        episodeMode: 'adventure',
         activeTab: 'story',
         rightMode: 'narrative',
         rightActionTab: 'talk',
@@ -588,7 +717,7 @@ export default function App() {
             xp: stage.rewardXp + 15,
             compassionDelta: 20,
             o2Delta: -16,
-            bannerText: 'Вы спасли пленного ныряльщика! В благодарность он поделился дублонами и картой (+20 Милосердие).',
+            bannerText: 'Вы спасли пленного ныряльщика! В благодарность он поделился дублонами и картой.',
             bannerTone: 'good',
           });
         }
@@ -600,7 +729,7 @@ export default function App() {
             xp: stage.rewardXp,
             compassionDelta: -22,
             o2Delta: -8,
-            bannerText: 'Вы послушали Флинта и тихо обчистили тайник, оставив ныряльщика в беде (-22 Милосердие, +богатый лут).',
+            bannerText: 'Вы послушали Флинта и тихо обчистили тайник, оставив ныряльщика в беде.',
             bannerTone: 'warn',
           });
         }
@@ -642,8 +771,221 @@ export default function App() {
   };
 
   const handleCustomStoryEvent = (handlerId: string) => {
+    if (handlerId === 'demo_restart_day') {
+      sfx.playPageTurn();
+      handleStartDemo();
+      return;
+    }
+    if (handlerId === 'enter_adventure_mode') {
+      sfx.playPageTurn();
+      handleSwitchToAdventure();
+      return;
+    }
+
     setState((prev) => {
       switch (handlerId) {
+        // === DEMO EPISODE: ОБЫЧНЫЙ ДЕНЬ В «АДМИРАЛЕ» ===
+        case 'demo_jukebox_disobey': {
+          sfx.playWrench();
+          const nextFlags = {
+            ...prev.flags,
+            demo_jukebox_disobeyed: true,
+            demo_done_jukebox: true,
+          };
+          const nextState: GameState = {
+            ...prev,
+            flags: nextFlags,
+            inventory: addItemToList(prev.inventory, 'odd_bolt', 1),
+            diaryConclusions: checkConclusion(prev, 'dc_bolt'),
+            currentSceneId: 'demo_2_jukebox_after',
+            rightActionTab: 'talk',
+            feedbackBanner: null,
+          };
+          return {
+            ...nextState,
+            diaryEntries: buildDemoDiaryEntries(nextState),
+            unreadDiary: true,
+          };
+        }
+        case 'demo_jukebox_obey': {
+          sfx.playClick();
+          const nextFlags = {
+            ...prev.flags,
+            demo_jukebox_obeyed: true,
+            demo_done_jukebox: true,
+          };
+          const nextState: GameState = {
+            ...prev,
+            flags: nextFlags,
+            inventory: addItemToList(prev.inventory, 'odd_bolt', 1),
+            diaryConclusions: checkConclusion(prev, 'dc_bolt'),
+            currentSceneId: 'demo_2_jukebox_after',
+            rightActionTab: 'talk',
+            feedbackBanner: null,
+          };
+          return {
+            ...nextState,
+            diaryEntries: buildDemoDiaryEntries(nextState),
+            unreadDiary: true,
+          };
+        }
+        case 'demo_gus_pay_own': {
+          sfx.playCoin();
+          const nextFlags = {
+            ...prev.flags,
+            demo_gus_paid_own: true,
+            demo_done_gus: true,
+          };
+          let nextConclusions = checkConclusion(prev, 'dc_gus');
+          nextConclusions = nextConclusions.map((c) =>
+            c.id === 'dc_salli' ? { ...c, checked: true } : c
+          );
+          const nextState: GameState = {
+            ...prev,
+            flags: nextFlags,
+            inventory: removeItemFromList(prev.inventory, 'jill_tips', 1),
+            diaryConclusions: nextConclusions,
+            currentSceneId: 'demo_4_gus_after',
+            rightActionTab: 'talk',
+            feedbackBanner: null,
+          };
+          return {
+            ...nextState,
+            diaryEntries: buildDemoDiaryEntries(nextState),
+            unreadDiary: true,
+          };
+        }
+        case 'demo_gus_tab_silver': {
+          sfx.playPageTurn();
+          const nextFlags = {
+            ...prev.flags,
+            demo_gus_tab_silver: true,
+            demo_done_gus: true,
+          };
+          let nextConclusions = checkConclusion(prev, 'dc_gus');
+          nextConclusions = nextConclusions.map((c) =>
+            c.id === 'dc_salli' ? { ...c, checked: true } : c
+          );
+          const nextState: GameState = {
+            ...prev,
+            flags: nextFlags,
+            diaryConclusions: nextConclusions,
+            currentSceneId: 'demo_4_gus_after',
+            rightActionTab: 'talk',
+            feedbackBanner: null,
+          };
+          return {
+            ...nextState,
+            diaryEntries: buildDemoDiaryEntries(nextState),
+            unreadDiary: true,
+          };
+        }
+        case 'demo_gus_lie_sour': {
+          sfx.playClick();
+          const nextFlags = {
+            ...prev.flags,
+            demo_gus_lied_sour: true,
+            demo_done_gus: true,
+          };
+          let nextConclusions = checkConclusion(prev, 'dc_gus');
+          nextConclusions = nextConclusions.map((c) =>
+            c.id === 'dc_salli' ? { ...c, checked: true } : c
+          );
+          const nextState: GameState = {
+            ...prev,
+            flags: nextFlags,
+            diaryConclusions: nextConclusions,
+            currentSceneId: 'demo_4_gus_after',
+            rightActionTab: 'talk',
+            feedbackBanner: null,
+          };
+          return {
+            ...nextState,
+            diaryEntries: buildDemoDiaryEntries(nextState),
+            unreadDiary: true,
+          };
+        }
+        case 'demo_open_parents_chest': {
+          sfx.playPageTurn();
+          let nextInv = addItemToList(prev.inventory, 'parents_buckle', 1);
+          nextInv = addItemToList(nextInv, 'parents_lens', 1);
+          nextInv = addItemToList(nextInv, 'sugar_water', 1);
+          return {
+            ...prev,
+            flags: { ...prev.flags, demo_opened_chest: true },
+            inventory: nextInv,
+            diaryConclusions: checkConclusion(prev, 'dc_lens'),
+            currentSceneId: 'demo_5_chest_silver',
+            rightActionTab: 'talk',
+            feedbackBanner: null,
+          };
+        }
+        case 'demo_fix_bulkhead_hands': {
+          sfx.playWrench();
+          const nextFlags = { ...prev.flags, demo_done_bulkhead: true };
+          const nextState: GameState = {
+            ...prev,
+            flags: nextFlags,
+            diaryConclusions: checkConclusion(prev, 'dc_wall'),
+            currentSceneId: 'demo_6_bulkhead_after',
+            rightActionTab: 'talk',
+            feedbackBanner: null,
+          };
+          return {
+            ...nextState,
+            diaryEntries: buildDemoDiaryEntries(nextState),
+            unreadDiary: true,
+          };
+        }
+        case 'demo_fix_bulkhead_bolt': {
+          sfx.playWrench();
+          const nextFlags = {
+            ...prev.flags,
+            demo_done_bulkhead: true,
+            demo_used_odd_bolt: true,
+          };
+          const nextState: GameState = {
+            ...prev,
+            flags: nextFlags,
+            inventory: removeItemFromList(prev.inventory, 'odd_bolt', 1),
+            diaryConclusions: checkConclusion(prev, 'dc_wall'),
+            currentSceneId: 'demo_6_bulkhead_after',
+            rightActionTab: 'talk',
+            feedbackBanner: null,
+          };
+          return {
+            ...nextState,
+            diaryEntries: buildDemoDiaryEntries(nextState),
+            unreadDiary: true,
+          };
+        }
+        case 'demo_enter_night': {
+          sfx.playPageTurn();
+          const nextFlags = { ...prev.flags, demo_done_night: true };
+          const nextState: GameState = {
+            ...prev,
+            flags: nextFlags,
+            currentSceneId: 'demo_8_night_closing',
+            rightActionTab: 'talk',
+            feedbackBanner: null,
+          };
+          return {
+            ...nextState,
+            diaryEntries: buildDemoDiaryEntries(nextState),
+            unreadDiary: true,
+          };
+        }
+        case 'demo_open_diary_finale': {
+          sfx.playPageTurn();
+          return {
+            ...prev,
+            activeTab: 'diary',
+            unreadDiary: false,
+            feedbackBanner: null,
+          };
+        }
+
+        // === ADVENTURE MODE HANDLERS ===
         case 'return_silver_watch': {
           sfx.playLockOpen();
           const xpPatch = awardXpState(prev, 40);
@@ -659,7 +1001,7 @@ export default function App() {
             diaryConclusions: checkConclusion(prev, 'c_silver'),
             quests: prev.quests.map((q) => (q.id === 'q_silver_watch' ? { ...q, completed: true } : q)),
             feedbackBanner: {
-              text: 'Сильвер растрогался и раскрыл секрет повязки! +25 Милосердие, +40 XP, новая запись в Дневнике!',
+              text: 'Сильвер молча пристегнул часы Меган обратно на цепочку. +40 XP, новая запись в Дневнике.',
               tone: 'good',
             },
           };
@@ -742,7 +1084,7 @@ export default function App() {
             flags: { ...prev.flags, brawl_resolved: true },
             currentSceneId: 'bar_brawl_victory',
             feedbackBanner: {
-              text: 'Мирное решение! Боцман ушёл пить ром, а Салли благодарна за спасение (+10 Милосердие, +25 XP).',
+              text: 'Мирное решение! Боцман ушёл пить ром, а Салли благодарна за помощь (+25 XP).',
               tone: 'good',
             },
           };
@@ -850,7 +1192,7 @@ export default function App() {
             sanity: Math.min(prev.maxSanity, prev.sanity + 20),
             compassion: prev.compassion + 5,
             feedbackBanner: {
-              text: 'Тёплый свет фонаря Джона прогнал холод Бездны (+20 Рассудка, +5 Милосердие).',
+              text: 'Тёплый свет фонаря Джона прогнал холод Бездны (+20 Рассудка).',
               tone: 'good',
             },
           };
@@ -1477,7 +1819,9 @@ export default function App() {
         // ignore
       }
     },
-    (seed) => handleStartNew(seed)
+    (seed) => handleStartNew(seed),
+    handleStartDemo,
+    handleSwitchToAdventure
   );
 
   // Show Title Cover before opening book
@@ -1486,7 +1830,8 @@ export default function App() {
       <TitleCover
         hasSavedGame={hasSavedGame}
         onContinue={handleContinueSaved}
-        onStartNew={handleStartNew}
+        onStartDemo={handleStartDemo}
+        onStartAdventure={handleStartNew}
       />
     );
   }
@@ -1659,17 +2004,15 @@ export default function App() {
         stageChoices.push(
           {
             id: 'exp_moral_mercy',
-            label: 'Спасти пленного ныряльщика вопреки совету Флинта (+Милосердие)',
+            label: 'Спасти пленного ныряльщика вопреки совету Флинта',
             icon: 'moral',
             primary: true,
-            styleTag: 'Мораль',
             action: { type: 'advance_expedition', option: 'mercy' },
           },
           {
             id: 'exp_moral_ruthless',
-            label: 'Послушать Флинта: тихо забрать наживу, пока наёмники отвлеклись (-Милосердие)',
+            label: 'Послушать Флинта: тихо забрать наживу, пока наёмники отвлеклись',
             icon: 'coin',
-            styleTag: 'Торг',
             action: { type: 'advance_expedition', option: 'ruthless' },
           }
         );
@@ -1767,15 +2110,22 @@ export default function App() {
         />
       );
     } else {
-      // Standard Hub / Narrative Story Scene
-      const scene = STORY_SCENES[state.currentSceneId] || STORY_SCENES.bar_intro;
+      // Standard Hub / Narrative Story Scene (supports both DEMO_SCENES and STORY_SCENES)
+      const scene =
+        DEMO_SCENES[state.currentSceneId] ||
+        STORY_SCENES[state.currentSceneId] ||
+        (state.episodeMode === 'demo_day' ? DEMO_SCENES.demo_1_morning : STORY_SCENES.bar_intro);
+
+      const sceneParagraphs = scene.getParagraphs ? scene.getParagraphs(state) : scene.paragraphs;
+      const sceneNpc = scene.getNpc ? scene.getNpc(state) : scene.npc;
+      const sceneChoices = scene.getChoices ? scene.getChoices(state) : scene.choices;
 
       activeLeft = (
         <LeftNarrativePage
           chapterLabel={scene.chapterLabel}
           title={scene.title}
-          paragraphs={scene.paragraphs}
-          choices={scene.choices}
+          paragraphs={sceneParagraphs}
+          choices={sceneChoices}
           state={state}
           vignette={scene.vignette}
           onChoose={handleChoice}
@@ -1786,7 +2136,7 @@ export default function App() {
         <RightActivityStage
           state={state}
           sceneArt={scene.art}
-          npc={scene.npc}
+          npc={sceneNpc}
           inspectText={scene.inspectText}
           merchantId={scene.merchantId}
           onSetActionTab={(tab) => {
@@ -1824,9 +2174,13 @@ export default function App() {
     }
   }
 
+  const activeSceneForShell =
+    DEMO_SCENES[state.currentSceneId] || STORY_SCENES[state.currentSceneId];
+
   return (
     <BookShell
       state={state}
+      timeOfDayLabel={activeSceneForShell?.timeOfDayLabel}
       onSelectTab={(tab: BookTab) =>
         setState((prev) => ({
           ...prev,

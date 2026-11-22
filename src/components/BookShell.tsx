@@ -16,12 +16,14 @@ import {
   KeyRound,
   Volume2,
   VolumeX,
+  Clock,
 } from 'lucide-react';
 import { BookTab, GameState } from '../types/game';
 import { sfx } from '../utils/sound';
 
 interface BookShellProps {
   state: GameState;
+  timeOfDayLabel?: string;
   onSelectTab: (tab: BookTab) => void;
   onToggleSound: () => void;
   leftPage: React.ReactNode;
@@ -41,11 +43,14 @@ const TABS: Array<{ id: BookTab; label: string; icon: React.ComponentType<{ clas
 
 export const BookShell: React.FC<BookShellProps> = ({
   state,
+  timeOfDayLabel,
   onSelectTab,
   onToggleSound,
   leftPage,
   rightPage,
 }) => {
+  const isDemo = state.episodeMode === 'demo_day';
+
   const handleTabClick = (id: BookTab) => {
     if (id !== state.activeTab) {
       sfx.playPageTurn();
@@ -61,25 +66,33 @@ export const BookShell: React.FC<BookShellProps> = ({
       <div className="w-full max-w-[1380px] mb-2 flex items-center justify-between gap-4 px-2 text-xs text-[#d2be9a]/85">
         <div className="flex items-center gap-3 min-w-0">
           <span className="font-display text-base sm:text-lg font-semibold tracking-wide text-[#f0d59f] whitespace-nowrap">
-            Хроники Бездны: Секрет «Адмирала»
+            {isDemo ? 'JILL · Обычный день в «Адмирале»' : 'Хроники Бездны: Секрет «Адмирала»'}
           </span>
-          <span className="hidden md:inline text-[#8d795b]" aria-hidden="true">·</span>
-          <span className="hidden md:inline text-[#b8a280] whitespace-nowrap">
-            День {state.day} · Зерно #{state.seed}
-          </span>
+          {!isDemo && (
+            <>
+              <span className="hidden md:inline text-[#8d795b]" aria-hidden="true">·</span>
+              <span className="hidden md:inline text-[#b8a280] whitespace-nowrap">
+                День {state.day} · Зерно #{state.seed}
+              </span>
+            </>
+          )}
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
-          <span className="hidden sm:inline text-[#b8a280] tabular-nums whitespace-nowrap">
-            Ключи Атлантиды: <strong className="text-[#f4c96b]">{state.atlantisKeys}/3</strong>
-          </span>
-          {state.skillPoints > 0 && (
-            <button
-              onClick={() => handleTabClick('skills')}
-              className="px-2.5 py-1 rounded bg-[#a96c23]/30 border border-[#dfa54d] text-[#fbe09e] hover:bg-[#a96c23]/50 transition-colors whitespace-nowrap cursor-pointer"
-            >
-              +Очки знаний ({state.skillPoints})
-            </button>
+          {!isDemo && (
+            <>
+              <span className="hidden sm:inline text-[#b8a280] tabular-nums whitespace-nowrap">
+                Ключи Атлантиды: <strong className="text-[#f4c96b]">{state.atlantisKeys}/3</strong>
+              </span>
+              {state.skillPoints > 0 && (
+                <button
+                  onClick={() => handleTabClick('skills')}
+                  className="px-2.5 py-1 rounded bg-[#a96c23]/30 border border-[#dfa54d] text-[#fbe09e] hover:bg-[#a96c23]/50 transition-colors whitespace-nowrap cursor-pointer"
+                >
+                  +Очки знаний ({state.skillPoints})
+                </button>
+              )}
+            </>
           )}
           <button
             onClick={onToggleSound}
@@ -120,15 +133,21 @@ export const BookShell: React.FC<BookShellProps> = ({
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const active = state.activeTab === tab.id;
+            const secondaryInDemo =
+              isDemo && (tab.id === 'quests' || tab.id === 'map' || tab.id === 'skills');
             const showNotice =
               (tab.id === 'diary' && state.unreadDiary) ||
-              (tab.id === 'skills' && state.skillPoints > 0);
+              (!isDemo && tab.id === 'skills' && state.skillPoints > 0);
             return (
               <button
                 key={tab.id}
                 onClick={() => handleTabClick(tab.id)}
                 className={`relative w-[78px] py-2.5 px-1.5 rounded-l-lg flex flex-col items-center justify-center gap-1 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#f5c86b] ${
-                  active ? 'book-tab-active text-[#1e1107]' : 'book-tab text-[#3a2312]'
+                  active
+                    ? 'book-tab-active text-[#1e1107]'
+                    : secondaryInDemo
+                    ? 'book-tab text-[#3a2312] opacity-65 hover:opacity-100'
+                    : 'book-tab text-[#3a2312]'
                 }`}
               >
                 <Icon className="w-4 h-4 shrink-0" />
@@ -179,44 +198,58 @@ export const BookShell: React.FC<BookShellProps> = ({
 
             {/* RIGHT PAGE */}
             <section className="parchment-right relative flex flex-col min-h-[560px] lg:h-full overflow-hidden">
-              {/* Top-Right Brass Resource Bar (matching the mockups!) */}
+              {/* Top-Right Brass Bar: calm literary header in demo_day, full HUD in adventure */}
               <div className="relative z-10 flex flex-wrap items-center justify-end gap-1.5 px-4 pt-3 pb-2 border-b border-[#8d6439]/30 bg-[#e4cca2]/55">
-                <HudCounter
-                  icon={<Heart className="w-3.5 h-3.5 text-[#e54d42]" />}
-                  label="Джил"
-                  value={`${state.jillHp}/${state.jillMaxHp}`}
-                  title="Здоровье Джил"
-                />
-                <HudCounter
-                  icon={<Zap className="w-3.5 h-3.5 text-[#f5c449]" />}
-                  label="Энерг."
-                  value={`${state.energy}/${state.maxEnergy}`}
-                  title="Энергия и выносливость"
-                />
-                <HudCounter
-                  icon={<Brain className="w-3.5 h-3.5 text-[#66e0c2]" />}
-                  label="Рассудок"
-                  value={`${state.sanity}%`}
-                  title="Рассудок (защита от хоррора Бездны)"
-                />
-                <HudCounter
-                  icon={<Cog className="w-3.5 h-3.5 text-[#e09d4c]" />}
-                  label="Детали"
-                  value={`${state.scrap}`}
-                  title="Механические детали и хлам для починки Джона"
-                />
-                <HudCounter
-                  icon={<Coins className="w-3.5 h-3.5 text-[#f6cd5a]" />}
-                  label="Дублоны"
-                  value={`${state.coins}`}
-                  title="Контрабандистские дублоны"
-                />
-                <HudCounter
-                  icon={<KeyRound className="w-3.5 h-3.5 text-[#75f2d6]" />}
-                  label="Ключи"
-                  value={`${state.atlantisKeys}/3`}
-                  title="Древние Ключи Атлантиды"
-                />
+                {isDemo ? (
+                  <div className="w-full flex items-center justify-between gap-2 text-xs text-[#4a2e14]">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <Clock className="w-3.5 h-3.5 text-[#7c5222]" />
+                      <span>{timeOfDayLabel || 'Бар «Адмирал»'}</span>
+                    </span>
+                    <span className="text-[11px] text-[#6d4924] tabular-nums">
+                      Вещей в кармане: {state.inventory.filter((i) => i.quantity > 0).length}
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <HudCounter
+                      icon={<Heart className="w-3.5 h-3.5 text-[#e54d42]" />}
+                      label="Джил"
+                      value={`${state.jillHp}/${state.jillMaxHp}`}
+                      title="Здоровье Джил"
+                    />
+                    <HudCounter
+                      icon={<Zap className="w-3.5 h-3.5 text-[#f5c449]" />}
+                      label="Энерг."
+                      value={`${state.energy}/${state.maxEnergy}`}
+                      title="Энергия и выносливость"
+                    />
+                    <HudCounter
+                      icon={<Brain className="w-3.5 h-3.5 text-[#66e0c2]" />}
+                      label="Рассудок"
+                      value={`${state.sanity}%`}
+                      title="Рассудок (защита от хоррора Бездны)"
+                    />
+                    <HudCounter
+                      icon={<Cog className="w-3.5 h-3.5 text-[#e09d4c]" />}
+                      label="Детали"
+                      value={`${state.scrap}`}
+                      title="Механические детали и хлам для починки Джона"
+                    />
+                    <HudCounter
+                      icon={<Coins className="w-3.5 h-3.5 text-[#f6cd5a]" />}
+                      label="Дублоны"
+                      value={`${state.coins}`}
+                      title="Контрабандистские дублоны"
+                    />
+                    <HudCounter
+                      icon={<KeyRound className="w-3.5 h-3.5 text-[#75f2d6]" />}
+                      label="Ключи"
+                      value={`${state.atlantisKeys}/3`}
+                      title="Древние Ключи Атлантиды"
+                    />
+                  </>
+                )}
               </div>
 
               <div className="flex-1 overflow-y-auto book-scroll px-4 sm:px-5 pt-3 pb-4 flex flex-col">
